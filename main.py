@@ -8,7 +8,7 @@ from disnake.ext import commands
 
 from calypso import config, db
 
-COGS = ("calypso.cogs.weather", "calypso.cogs.admin", "calypso.cogs.onboarding")
+COGS = ("calypso.cogs.weather", "calypso.cogs.admin", "calypso.cogs.onboarding", "calypso.cogs.encounters")
 
 logging.basicConfig(level=logging.INFO)
 
