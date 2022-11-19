@@ -1,6 +1,7 @@
 """
 Random encounter tables for the NLP. These commands can only be run in the NLP server.
 """
+import re
 from bisect import bisect_left
 
 import d20
@@ -39,8 +40,16 @@ class Encounters(commands.Cog):
         idx = bisect_left(normalized_weights, roll_result.total)
         encounter = tier_obj.encounters[idx]
 
+        # render the encounter text
+        encounter_text = re.sub(r"\{.+?}", lambda match: d20.roll(match.group(1)).result, encounter.text)
+
         # roll the encounter template dice
-        await inter.send(f"{roll_result}\n{encounter.text}\nTODO: make this prettier and fix templating")
+        embed = disnake.Embed(
+            title="Rolling for random encounter...",
+            description=f"**{biome} - Tier {tier}**\nRoll: {roll_result}\n\n{encounter_text}",
+            colour=disnake.Colour.random(),
+        )
+        await inter.send(embed=embed, ephemeral=private)
 
     # ==== admin ====
     @commands.slash_command(description="Reload the encounter repository", guild_ids=[constants.GUILD_ID])
