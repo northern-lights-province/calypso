@@ -41,7 +41,7 @@ class Encounters(commands.Cog):
         encounter = tier_obj.encounters[idx]
 
         # render the encounter text
-        encounter_text = re.sub(r"\{.+?}", lambda match: d20.roll(match.group(1)).result, encounter.text)
+        encounter_text = re.sub(r"\{(.+?)}", lambda match: d20.roll(match.group(1)).result, encounter.text)
 
         # roll the encounter template dice
         embed = disnake.Embed(
