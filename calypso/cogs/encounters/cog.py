@@ -51,6 +51,15 @@ class Encounters(commands.Cog):
         )
         await inter.send(embed=embed, ephemeral=private)
 
+        # if the encounter was private, send a copy to the staff log
+        if private:
+            log_channel = self.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
+            await log_channel.send(
+                f"{inter.author.mention} rolled a hidden encounter in {inter.channel.mention}:",
+                embed=embed,
+                allowed_mentions=disnake.AllowedMentions.none(),
+            )
+
     # ==== admin ====
     @commands.slash_command(description="Reload the encounter repository", guild_ids=[constants.GUILD_ID])
     @commands.default_member_permissions(manage_guild=True)
