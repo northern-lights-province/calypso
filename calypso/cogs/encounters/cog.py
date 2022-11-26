@@ -25,7 +25,7 @@ class Encounters(commands.Cog):
         inter: disnake.ApplicationCommandInteraction,
         biome: str = biome_param(desc="The biome to roll an encounter in."),
         tier: int = commands.Param(gt=0, desc="The encounter tier to roll."),
-        private: bool = commands.Param(False, desc="Whether to send the result as a private message or not."),
+        private: bool = commands.Param(True, desc="Whether to send the result as a private message or not."),
     ):
         # find the biome and tier
         tier_obj = next((t for t in EncounterRepository.tiers if t.biome == biome and t.tier == tier), None)
