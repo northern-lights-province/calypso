@@ -6,9 +6,15 @@ from math import floor, isfinite
 import disnake
 from disnake.ext import commands
 
-from calypso import config, db
+from calypso import config, db, errors
 
-COGS = ("calypso.cogs.weather", "calypso.cogs.admin", "calypso.cogs.onboarding", "calypso.cogs.encounters")
+COGS = (
+    "calypso.cogs.weather",
+    "calypso.cogs.admin",
+    "calypso.cogs.onboarding",
+    "calypso.cogs.encounters",
+    "calypso.cogs.cgoals",
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,8 +40,13 @@ async def on_ready():
 
 @bot.event
 async def on_slash_command_error(inter, error):
+    if isinstance(error, commands.CommandInvokeError):
+        error = error.original
+
     await inter.send(f"Error: {error!s}", ephemeral=True)
-    traceback.print_exception(error)
+
+    if not isinstance(error, errors.CalypsoError):
+        traceback.print_exception(error)
 
 
 # === commands ===

@@ -37,3 +37,6 @@ class BaseClient(abc.ABC):
 
     async def get(self, route: str, **kwargs):
         return await self.request("GET", route, **kwargs)
+
+    async def post(self, route: str, **kwargs):
+        return await self.request("POST", route, **kwargs)

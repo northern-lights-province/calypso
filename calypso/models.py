@@ -1,4 +1,6 @@
-from sqlalchemy import BigInteger, Column, ForeignKey, Integer, String
+import datetime
+
+from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from .db import Base
@@ -33,3 +35,31 @@ class WeatherChannelMap(Base):
 
     def __repr__(self):
         return f"<{type(self).__name__} id={self.id!r} biome_id={self.biome_id!r}>"
+
+
+# ==== community goals ====
+class CommunityGoal(Base):
+    __tablename__ = "cg_goals"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    slug = Column(String, nullable=False)
+    cost_cp = Column(Integer, nullable=False)
+    funded_cp = Column(Integer, nullable=False, default=0)
+    message_id = Column(BigInteger, nullable=True)
+    description = Column(String, nullable=True)
+    image_url = Column(String, nullable=True)
+
+    contributions = relationship("CommunityGoalContribution", back_populates="goal")
+
+
+class CommunityGoalContribution(Base):
+    __tablename__ = "cg_contributions"
+
+    id = Column(Integer, primary_key=True)
+    goal_id = Column(Integer, ForeignKey("cg_goals.id", ondelete="CASCADE"))
+    user_id = Column(BigInteger, nullable=False)
+    amount_cp = Column(Integer, nullable=False)
+    timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+
+    goal = relationship("CommunityGoal", back_populates="contributions")

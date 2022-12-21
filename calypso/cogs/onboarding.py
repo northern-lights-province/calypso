@@ -6,10 +6,12 @@ from calypso import constants
 ONBOARDING_BUTTON_ID = "onboarding.agree"
 
 
+
 class Onboarding(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    # SETUP
     @commands.slash_command(description="Sends a new button to accept the rules, in this channel.", dm_permission=False)
     @commands.default_member_permissions(manage_guild=True)
     async def send_onboarding_button(
