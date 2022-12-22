@@ -11,7 +11,7 @@ class BaseClient(abc.ABC):
     def __init__(self, http: aiohttp.ClientSession):
         self.http = http
 
-    async def request(self, method: str, route: str, **kwargs):
+    async def request(self, method: str, route: str, response_as_text=False, **kwargs):
         try:
             async with self.http.request(method, f"{self.SERVICE_BASE}{route}", **kwargs) as resp:
                 self.logger.debug(f"{method} {self.SERVICE_BASE}{route} returned {resp.status}")
@@ -22,7 +22,10 @@ class BaseClient(abc.ABC):
                     )
                     raise RuntimeError(f"Request returned an error: {resp.status}: {resp.reason}")
                 try:
-                    data = await resp.json()
+                    if not response_as_text:
+                        data = await resp.json()
+                    else:
+                        data = await resp.text()
                     self.logger.debug(data)
                 except (aiohttp.ContentTypeError, ValueError, TypeError):
                     data = await resp.text()

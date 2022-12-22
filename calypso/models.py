@@ -52,6 +52,18 @@ class CommunityGoal(Base):
 
     contributions = relationship("CommunityGoalContribution", back_populates="goal")
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "slug": self.slug,
+            "cost_cp": self.cost_cp,
+            "funded_cp": self.funded_cp,
+            "message_id": self.message_id,
+            "description": self.description,
+            "image_url": self.image_url,
+        }
+
 
 class CommunityGoalContribution(Base):
     __tablename__ = "cg_contributions"

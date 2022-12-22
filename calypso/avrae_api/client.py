@@ -18,8 +18,8 @@ class AvraeClient(BaseClient):
         return await super().request(method, route, headers=headers, **kwargs)
 
     async def get_gvar(self, gvar_id: str) -> Gvar:
-        data = await self.get(f"/gvars/{gvar_id}")
+        data = await self.get(f"/customizations/gvars/{gvar_id}")
         return Gvar.parse_obj(data)
 
     async def set_gvar(self, gvar_id: str, value: str) -> str:
-        return await self.post(f"/gvars/{gvar_id}", json={"value": value})
+        return await self.post(f"/customizations/gvars/{gvar_id}", json={"value": value}, response_as_text=True)

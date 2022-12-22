@@ -1,6 +1,7 @@
 """
 Community goal management for the NLP. These commands can only be run in the NLP server.
 """
+import json
 from typing import Any
 
 import aiohttp
@@ -11,12 +12,14 @@ from sqlalchemy import delete
 from calypso import config, constants, db, models
 from calypso.avrae_api.client import AvraeClient
 from calypso.errors import UserInputError
+from . import queries
 from .params import cg_param
 
 # embed color interpolation
 CG_START_COLOR = disnake.Colour(0xFFCC99)
 CG_END_COLOR = disnake.Colour(0x60D394)
 CG_COMPLETE_COLOR = disnake.Colour(0x88AED0)
+CG_GVAR_ID = "8c8046fd-5775-49b0-b0ab-1893da5dde5e"
 
 
 class CommunityGoals(commands.Cog):
@@ -56,8 +59,7 @@ class CommunityGoals(commands.Cog):
             session.add(new_cg)
             await session.commit()
 
-        # TODO: update avrae gvar
-
+        await self._update_avrae_gvar()
         await inter.send(f"Created the community goal {new_cg.name} (`{new_cg.slug}`)!")
 
     @cg.sub_command(name="edit", description="Edit a community goal")
@@ -93,7 +95,7 @@ class CommunityGoals(commands.Cog):
             await session.commit()
 
         await self._edit_cg_message(cg)
-        # TODO: update avrae gvar
+        await self._update_avrae_gvar()
 
         await inter.send(f"Updated the CG {cg.name} (`{cg.slug}`).")
 
@@ -108,7 +110,7 @@ class CommunityGoals(commands.Cog):
             await session.commit()
 
         await self._delete_cg_message(cg)
-        # TODO: update avrae gvar
+        await self._update_avrae_gvar()
 
         await inter.send(f"Deleted the goal {cg.name} (`{cg.slug}`).")
 
@@ -125,6 +127,7 @@ class CommunityGoals(commands.Cog):
             cg.funded_cp += amt_cp
             await session.commit()
         await self._edit_cg_message(cg)
+        await self._update_avrae_gvar()
         await inter.send(f"Debug-funded the goal {cg.name} (`{cg.slug}`).")
 
     # ==== utils ====
@@ -149,6 +152,12 @@ class CommunityGoals(commands.Cog):
             await msg.delete()
         except disnake.HTTPException:
             pass
+
+    async def _update_avrae_gvar(self):
+        async with db.async_session() as session:
+            cgs = await queries.get_all_cgs(session)
+        data = [cg.to_dict() for cg in cgs]
+        await self.client.set_gvar(CG_GVAR_ID, json.dumps(data))
 
 
 def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
@@ -182,4 +191,5 @@ def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
     embed.add_field(name="Cost", value=f"{cg.cost_cp / 100:,.2f} gp", inline=True)
     embed.add_field(name="Contributed", value=f"{cg.funded_cp / 100:,.2f} gp ({percent_complete:.1%})", inline=True)
     embed.add_field(name="Progress", value=progress_bar, inline=False)
+    embed.set_footer(text=f"Contribute to this goal with !cg {cg.slug} <amount>!")
     return embed
