@@ -43,16 +43,14 @@ async def biome_autocomplete(inter: disnake.ApplicationCommandInteraction, arg: 
         biome_results = available_biomes[:5]
     else:
         names = [key(d) for d in available_biomes]
-        fuzzy_map = {key(d): d for d in available_biomes}
         results = process.extract(arg, names, scorer=fuzz.partial_ratio)
-        biome_results = [fuzzy_map[name] for name, score in results]
-    return [f"{b.name} - {b.id}" for b in biome_results]
+        biome_results = [available_biomes[idx] for name, score, idx in results]
+    return {b.name: str(b.id) for b in biome_results}
 
 
 async def biome_converter(_: disnake.ApplicationCommandInteraction, arg: str) -> models.WeatherBiome:
     try:
-        _, biome_id = arg.rsplit("- ", 1)
-        biome_id = int(biome_id)
+        biome_id = int(arg)
     except ValueError as e:
         raise ValueError("Invalid biome selection") from e
     async with db.async_session() as session:
