@@ -4,6 +4,14 @@ from sqlalchemy.orm import selectinload
 from calypso import models
 
 
+async def get_all_cgs(session, load_contributions=False) -> list[models.CommunityGoal]:
+    stmt = select(models.CommunityGoal)
+    if load_contributions:
+        stmt = stmt.options(selectinload(models.CommunityGoal.contributions))
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
 async def get_active_cgs(session, load_contributions=False) -> list[models.CommunityGoal]:
     """Returns a list of all active CGs."""
     stmt = select(models.CommunityGoal).where(models.CommunityGoal.funded_cp < models.CommunityGoal.cost_cp)

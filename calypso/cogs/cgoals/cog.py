@@ -13,6 +13,11 @@ from calypso.avrae_api.client import AvraeClient
 from calypso.errors import UserInputError
 from .params import cg_param
 
+# embed color interpolation
+CG_START_COLOR = disnake.Colour(0xFFCC99)
+CG_END_COLOR = disnake.Colour(0x60D394)
+CG_COMPLETE_COLOR = disnake.Colour(0x88AED0)
+
 
 class CommunityGoals(commands.Cog):
     def __init__(self, bot):
@@ -39,18 +44,19 @@ class CommunityGoals(commands.Cog):
         if not cost_cp > 0:
             raise UserInputError("The goal cost must be at least 0.01gp.")
         new_cg = models.CommunityGoal(
-            name=name, slug=slug, cost_cp=cost_cp, description=description, image_url=image_url
+            name=name, slug=slug, cost_cp=cost_cp, description=description, image_url=image_url, funded_cp=0
         )
 
-        # TODO: post to cg channel
+        # post to cg channel
+        msg = await self._send_cg_message(new_cg)
         new_cg.message_id = msg.id
-
-        # TODO: update avrae gvar
 
         # add to db
         async with db.async_session() as session:
             session.add(new_cg)
             await session.commit()
+
+        # TODO: update avrae gvar
 
         await inter.send(f"Created the community goal {new_cg.name} (`{new_cg.slug}`)!")
 
@@ -86,7 +92,7 @@ class CommunityGoals(commands.Cog):
 
             await session.commit()
 
-        # todo: update the CG message
+        await self._edit_cg_message(cg)
         # TODO: update avrae gvar
 
         await inter.send(f"Updated the CG {cg.name} (`{cg.slug}`).")
@@ -101,7 +107,79 @@ class CommunityGoals(commands.Cog):
             await session.execute(delete(models.CommunityGoal).where(models.CommunityGoal.id == cg.id))
             await session.commit()
 
-        # todo: delete the CG message
+        await self._delete_cg_message(cg)
         # TODO: update avrae gvar
 
         await inter.send(f"Deleted the goal {cg.name} (`{cg.slug}`).")
+
+    @cg.sub_command(name="debug-fund", description="Fund a CG by an amount (DEBUG ONLY)")
+    async def cg_debug_fund(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        cg: Any = cg_param(desc="The community goal to fund"),
+        amount: float = commands.Param(desc="The amount to change the funding by, in gp"),
+    ):
+        amt_cp = int(amount * 100)
+        async with db.async_session() as session:
+            session.add(cg)
+            cg.funded_cp += amt_cp
+            await session.commit()
+        await self._edit_cg_message(cg)
+        await inter.send(f"Debug-funded the goal {cg.name} (`{cg.slug}`).")
+
+    # ==== utils ====
+    async def _send_cg_message(self, cg: models.CommunityGoal):
+        cg_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
+        return await cg_channel.send(embed=cg_embed(cg))
+
+    async def _edit_cg_message(self, cg: models.CommunityGoal):
+        cg_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
+        msg = cg_channel.get_partial_message(cg.message_id)
+        try:
+            await msg.edit(embed=cg_embed(cg))
+        except disnake.HTTPException:
+            pass
+
+    async def _delete_cg_message(self, cg: models.CommunityGoal):
+        if cg.message_id is None:
+            return
+        cg_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
+        msg = cg_channel.get_partial_message(cg.message_id)
+        try:
+            await msg.delete()
+        except disnake.HTTPException:
+            pass
+
+
+def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
+    is_finished = cg.funded_cp >= cg.cost_cp
+    percent_complete = min(cg.funded_cp / cg.cost_cp, 1)
+    if not is_finished:
+        start_r, start_g, start_b = CG_START_COLOR.to_rgb()
+        end_r, end_g, end_b = CG_END_COLOR.to_rgb()
+        dred = end_r - start_r
+        dgrn = end_g - start_g
+        dblu = end_b - start_b
+        color = disnake.Colour.from_rgb(
+            start_r + int(dred * percent_complete),
+            start_g + int(dgrn * percent_complete),
+            start_b + int(dblu * percent_complete),
+        )
+
+        n_equals = int(30 * percent_complete)
+        n_spaces = 30 - n_equals
+        progress_bar = f"```ini\n[{'=' * n_equals}>{' ' * n_spaces}]\n```"
+    else:
+        color = CG_COMPLETE_COLOR
+        progress_bar = "```diff\n+ Goal complete! +\n```"
+
+    embed = disnake.Embed()
+    embed.title = cg.name
+    embed.colour = color
+    embed.description = f"ID: `{cg.slug}`"
+    if cg.description is not None:
+        embed.description = f"ID: `{cg.slug}`\n*Goal: {cg.description}*"
+    embed.add_field(name="Cost", value=f"{cg.cost_cp / 100:,.2f} gp", inline=True)
+    embed.add_field(name="Contributed", value=f"{cg.funded_cp / 100:,.2f} gp ({percent_complete:.1%})", inline=True)
+    embed.add_field(name="Progress", value=progress_bar, inline=False)
+    return embed

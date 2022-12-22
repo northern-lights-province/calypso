@@ -40,3 +40,6 @@ class BaseClient(abc.ABC):
 
     async def post(self, route: str, **kwargs):
         return await self.request("POST", route, **kwargs)
+
+    async def close(self):
+        await self.http.close()
