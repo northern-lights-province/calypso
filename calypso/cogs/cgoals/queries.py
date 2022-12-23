@@ -23,6 +23,15 @@ async def get_active_cgs(session, load_contributions=False) -> list[models.Commu
 
 async def get_cg_by_id(session, cg_id: int, load_contributions=False) -> models.CommunityGoal:
     stmt = select(models.CommunityGoal).where(models.CommunityGoal.id == cg_id)
+    return await _get_cg(session, stmt, load_contributions)
+
+
+async def get_cg_by_slug(session, cg_slug: str, load_contributions=False) -> models.CommunityGoal:
+    stmt = select(models.CommunityGoal).where(models.CommunityGoal.slug == cg_slug)
+    return await _get_cg(session, stmt, load_contributions)
+
+
+async def _get_cg(session, stmt, load_contributions) -> models.CommunityGoal:
     if load_contributions:
         stmt = stmt.options(selectinload(models.CommunityGoal.contributions))
     result = await session.execute(stmt)

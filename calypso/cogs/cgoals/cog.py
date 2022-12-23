@@ -1,8 +1,12 @@
 """
 Community goal management for the NLP. These commands can only be run in the NLP server.
 """
+import asyncio
+import datetime
 import json
+import time
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import aiohttp
 import disnake
@@ -11,7 +15,7 @@ from sqlalchemy import delete
 
 from calypso import config, constants, db, models
 from calypso.avrae_api.client import AvraeClient
-from calypso.errors import UserInputError
+from calypso.errors import CalypsoError, UserInputError
 from . import queries
 from .params import cg_param
 
@@ -20,12 +24,91 @@ CG_START_COLOR = disnake.Colour(0xFFCC99)
 CG_END_COLOR = disnake.Colour(0x60D394)
 CG_COMPLETE_COLOR = disnake.Colour(0x88AED0)
 CG_GVAR_ID = "8c8046fd-5775-49b0-b0ab-1893da5dde5e"
+CG_WORKSHOP_ID = "6379515f16eb2e36c2591716"
 
 
 class CommunityGoals(commands.Cog):
     def __init__(self, bot):
-        self.bot = bot
+        self.bot: commands.Bot = bot
         self.client = AvraeClient(aiohttp.ClientSession(loop=bot.loop), config.AVRAE_API_KEY)
+
+    # ==== message listener ====
+    @commands.Cog.listener()
+    async def on_message(self, message: disnake.Message):
+        # ignore it if it's not in cg channel, from Calypso, or from a staff member with [nodelete]
+        if message.channel.id != constants.COMMUNITY_GOAL_CHANNEL_ID:
+            return
+        if message.author.id == self.bot.user.id:
+            return
+        if constants.STAFF_ROLE_ID in {r.id for r in message.author.roles} and "[nodelete]" in message.content:
+            return
+
+        # if it's from avrae and has an embed with a thumb...
+        if (
+            message.author.id == constants.AVRAE_ID
+            and message.embeds
+            and (thumb_url := message.embeds[0].thumbnail.url)
+        ):
+            await self._handle_avrae_cg_thumb(message, thumb_url)
+
+        # set a task to try deleting the message in 1 minute
+        await asyncio.sleep(60)
+        try:
+            await message.delete()
+        except disnake.HTTPException:
+            pass
+
+    async def _handle_avrae_cg_thumb(self, message: disnake.Message, thumb_url: str):
+        # parse the thumbnail: is it a public.mechanus.zhu.codes image?
+        parts = urlparse(thumb_url)
+        if parts.netloc != "public.mechanus.zhu.codes":
+            return
+        if parts.path != "/coins.png":
+            return
+        if not parts.query:
+            return
+
+        # parse the query string, verify signature
+        qs = parse_qs(parts.query.replace("+", "%2b"))
+        if not ("signature" in qs and "amtcp" in qs and "slug" in qs):
+            return
+        signature = qs["signature"][0]
+        sig_verified = True
+        try:
+            signature = await self.client.verify_signature(signature)
+        except CalypsoError:
+            sig_verified = False
+        else:
+            # if the channel, time, scope, and workshop id don't all match, error
+            if not (
+                signature.channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID
+                and signature.scope == "SERVER_ALIAS"
+                and signature.workshop_collection_id == CG_WORKSHOP_ID
+                and signature.timestamp > (time.time() - 15)
+                and signature.user_data == 7
+            ):
+                sig_verified = False
+        if not sig_verified:
+            await message.add_reaction("\u274c")  # red X
+            return
+
+        # fund the cg by the given amount
+        amt_cp = int(qs["amtcp"][0])
+        slug = qs["slug"][0]
+        async with db.async_session() as session:
+            cg = await queries.get_cg_by_slug(session, slug)
+            cg.funded_cp += amt_cp
+            contribution = models.CommunityGoalContribution(
+                goal_id=cg.id,
+                user_id=signature.author_id,
+                amount_cp=amt_cp,
+                timestamp=datetime.datetime.utcfromtimestamp(signature.timestamp),
+            )
+            session.add(contribution)
+            await session.commit()
+        await self._edit_cg_message(cg)
+        await self._update_avrae_gvar()
+        await message.add_reaction("\u2705")  # green check mark
 
     # ==== admin commands ====
     @commands.slash_command(name="cg", description="Manage community goals", guild_ids=[constants.GUILD_ID])

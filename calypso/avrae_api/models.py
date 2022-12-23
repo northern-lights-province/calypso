@@ -7,3 +7,14 @@ class Gvar(BaseModel):
     owner_name: str
     value: str
     editors: list[int]
+
+
+class Signature(BaseModel):
+    message_id: int
+    channel_id: int
+    author_id: int
+    timestamp: float
+    workshop_collection_id: str | None
+    scope: str
+    user_data: int
+    guild_id: int | None

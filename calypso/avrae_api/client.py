@@ -1,7 +1,7 @@
 import aiohttp
 
 from calypso.utils.httpclient import BaseClient
-from .models import Gvar
+from .models import Gvar, Signature
 
 
 class AvraeClient(BaseClient):
@@ -23,3 +23,7 @@ class AvraeClient(BaseClient):
 
     async def set_gvar(self, gvar_id: str, value: str) -> str:
         return await self.post(f"/customizations/gvars/{gvar_id}", json={"value": value}, response_as_text=True)
+
+    async def verify_signature(self, signature: str) -> Signature:
+        data = await self.post(f"/bot/signature/verify", json={"signature": signature})
+        return Signature.parse_obj(data["data"])
