@@ -271,6 +271,8 @@ def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
     embed.description = f"ID: `{cg.slug}`"
     if cg.description is not None:
         embed.description = f"ID: `{cg.slug}`\n*Goal: {cg.description}*"
+    if cg.image_url is not None:
+        embed.set_image(cg.image_url)
     embed.add_field(name="Cost", value=f"{cg.cost_cp / 100:,.2f} gp", inline=True)
     embed.add_field(name="Contributed", value=f"{cg.funded_cp / 100:,.2f} gp ({percent_complete:.1%})", inline=True)
     embed.add_field(name="Progress", value=progress_bar, inline=False)
