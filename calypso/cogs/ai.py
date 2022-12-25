@@ -68,8 +68,10 @@ class AIUtils(commands.Cog):
             top_p=0.95,
             user=str(inter.author.id),
         )
-        automation = completion.text
-        if critterdb_format:
+        automation = completion.text.strip()
+        if automation == "meta: No automation":
+            automation_chunks = ["No automation was generated. Perhaps this ability doesn't need automation."]
+        elif critterdb_format:
             automation_chunks = chunk_text(
                 f"<avrae hidden>\nname: {ability}\n_v: 2\nautomation:\n{automation}\n</avrae>",
                 max_chunk_size=1900,
