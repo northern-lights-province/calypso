@@ -110,6 +110,11 @@ class CommunityGoals(commands.Cog):
         await self._update_avrae_gvar()
         await message.add_reaction("\u2705")  # green check mark
 
+        # if the cg is now fully funded, notify the staff
+        if cg.funded_cp >= cg.cost_cp:
+            log_channel = self.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
+            await log_channel.send(f"<@&{constants.STAFF_ROLE_ID}> The {cg.name} community goal is now fully funded!")
+
     # ==== admin commands ====
     @commands.slash_command(name="cg", description="Manage community goals", guild_ids=[constants.GUILD_ID])
     @commands.default_member_permissions(manage_guild=True)
