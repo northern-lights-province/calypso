@@ -63,6 +63,8 @@ class EncounterClient:
         for ((name, tier, _), result_range) in zip(query, result_ranges):
             encounters = []
             for text, weight in result_range["values"]:
+                if not (text and weight):
+                    continue
                 encounters.append(Encounter(text=text, weight=weight))
             all_tiers.append(Tier(biome=name, tier=tier, encounters=encounters))
 
