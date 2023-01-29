@@ -60,7 +60,7 @@ class EncounterClient:
         # pair all the queries w/ the data results
         all_tiers = []
 
-        for ((name, tier, _), result_range) in zip(query, result_ranges):
+        for (name, tier, _), result_range in zip(query, result_ranges):
             encounters = []
             for text, weight in result_range["values"]:
                 if not (text and weight):
