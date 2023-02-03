@@ -278,7 +278,7 @@ async def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
 
     # leaderboard
     async with db.async_session() as session:
-        contributions = await queries.get_cg_contributions(session, cg.id)
+        contributions = await queries.get_cg_contribution_leaderboard(session, cg.id)
     leaderboard = ""
     if contributions:
         top_3_emoji = ("\U0001F947", "\U0001F948", "\U0001F949")  # first_place - third_place
