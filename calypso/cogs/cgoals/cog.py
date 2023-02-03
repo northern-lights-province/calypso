@@ -73,21 +73,19 @@ class CommunityGoals(commands.Cog):
         if not ("signature" in qs and "amtcp" in qs and "slug" in qs):
             return
         signature = qs["signature"][0]
-        sig_verified = True
         try:
             signature = await self.client.verify_signature(signature)
         except CalypsoError:
             sig_verified = False
         else:
             # if the channel, time, scope, and workshop id don't all match, error
-            if not (
+            sig_verified = (
                 signature.channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID
                 and signature.scope == "SERVER_ALIAS"
                 and signature.workshop_collection_id == CG_WORKSHOP_ID
                 and signature.timestamp > (time.time() - 15)
                 and signature.user_data == 7
-            ):
-                sig_verified = False
+            )
         if not sig_verified:
             await message.add_reaction("\u274c")  # red X
             return
@@ -218,16 +216,24 @@ class CommunityGoals(commands.Cog):
         await self._update_avrae_gvar()
         await inter.send(f"Debug-funded the goal {cg.name} (`{cg.slug}`).")
 
+    @cg.sub_command(name="debug-refresh", description="Refresh all CG embeds")
+    async def cg_debug_refresh(self, inter: disnake.ApplicationCommandInteraction):
+        await inter.send("Ok, refreshing all embeds now...")
+        async with db.async_session() as session:
+            cgs = await queries.get_all_cgs(session)
+        for cg in cgs:
+            await self._edit_cg_message(cg)
+
     # ==== utils ====
     async def _send_cg_message(self, cg: models.CommunityGoal):
         cg_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
-        return await cg_channel.send(embed=cg_embed(cg))
+        return await cg_channel.send(embed=await cg_embed(cg))
 
     async def _edit_cg_message(self, cg: models.CommunityGoal):
         cg_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
         msg = cg_channel.get_partial_message(cg.message_id)
         try:
-            await msg.edit(embed=cg_embed(cg))
+            await msg.edit(embed=await cg_embed(cg))
         except disnake.HTTPException:
             pass
 
@@ -248,7 +254,7 @@ class CommunityGoals(commands.Cog):
         await self.client.set_gvar(CG_GVAR_ID, json.dumps(data))
 
 
-def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
+async def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
     is_finished = cg.funded_cp >= cg.cost_cp
     percent_complete = min(cg.funded_cp / cg.cost_cp, 1)
     if not is_finished:
@@ -270,6 +276,15 @@ def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
         color = CG_COMPLETE_COLOR
         progress_bar = "```diff\n+ Goal complete! +\n```"
 
+    # leaderboard
+    async with db.async_session() as session:
+        contributions = await queries.get_cg_contributions(session, cg.id)
+    leaderboard = ""
+    if contributions:
+        top_3_emoji = ("\U0001F947", "\U0001F948", "\U0001F949")  # first_place - third_place
+        for emoji, (user_id, amount_cp) in zip(top_3_emoji, contributions):
+            leaderboard += f"{emoji} <@{user_id}> - {amount_cp / 100 :.2f} gp\n"
+
     embed = disnake.Embed()
     embed.title = cg.name
     embed.colour = color
@@ -281,5 +296,7 @@ def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
     embed.add_field(name="Cost", value=f"{cg.cost_cp / 100:,.2f} gp", inline=True)
     embed.add_field(name="Contributed", value=f"{cg.funded_cp / 100:,.2f} gp ({percent_complete:.1%})", inline=True)
     embed.add_field(name="Progress", value=progress_bar, inline=False)
+    if leaderboard:
+        embed.add_field(name="Leaderboard", value=leaderboard, inline=False)
     embed.set_footer(text=f"Contribute to this goal with !cg {cg.slug} <amount>!")
     return embed
