@@ -76,21 +76,23 @@ def weather_embed(biome: models.WeatherBiome, weather: CurrentWeather) -> disnak
         f"in {biome.name}. {weather_desc(weather)}"
     )
 
+    is_heavy_precipitation = False
     for weather_detail in weather.weather:
         embed.add_field(
             name=weather_detail.main,
             value=WEATHER_DESC.get(weather_detail.id, weather_detail.description),
             inline=False,
         )
+        is_heavy_precipitation = is_heavy_precipitation or extreme_weather.is_heavy_precipitation(weather_detail.id)
 
     # extreme weather
     if degrees_f <= 0:
         embed.add_field(name="Extreme Cold", value=extreme_weather.EXTREME_COLD, inline=False)
     if degrees_f >= 100:
         embed.add_field(name="Extreme Heat", value=extreme_weather.EXTREME_HEAT, inline=False)
-    if weather.wind.speed >= 4.4:
+    if weather.wind.speed >= 10:
         embed.add_field(name="Strong Wind", value=extreme_weather.STRONG_WIND, inline=False)
-    if extreme_weather.is_heavy_precipitation(weather_detail.id):
+    if is_heavy_precipitation:
         embed.add_field(name="Heavy Precipitation", value=extreme_weather.HEAVY_PRECIPITATION, inline=False)
 
     return embed
@@ -102,8 +104,20 @@ def weather_desc(weather: CurrentWeather) -> str:
         wind_desc = "calm"
     elif weather.wind.speed < 4.4:
         wind_desc = "light"
-    else:
+    elif weather.wind.speed < 6:
+        wind_desc = "moderate"
+    elif weather.wind.speed < 8:
+        wind_desc = "blustery"
+    elif weather.wind.speed < 10:
+        wind_desc = "gusty"
+    elif weather.wind.speed < 14:
         wind_desc = "strong"
+    elif weather.wind.speed < 20:
+        wind_desc = "a gale"
+    elif weather.wind.speed < 32:
+        wind_desc = "violent"
+    else:
+        wind_desc = "a hurricane"
 
     if 0 <= weather.wind.deg < 45:
         wind_direction = "north"
