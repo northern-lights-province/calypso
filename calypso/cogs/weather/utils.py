@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from calypso import models
+from . import extreme_weather
 from .client import CurrentWeather, WEATHER_DESC
 
 
@@ -68,8 +69,10 @@ def weather_embed(biome: models.WeatherBiome, weather: CurrentWeather) -> disnak
     if biome.image_url:
         embed.set_thumbnail(url=biome.image_url)
 
+    degrees_f = int(k_to_f(weather.main.temp))
+
     embed.description = (
-        f"It's currently {int(k_to_f(weather.main.temp))}\u00b0F ({int(k_to_c(weather.main.temp))}\u00b0C) "
+        f"It's currently {degrees_f}\u00b0F ({int(k_to_c(weather.main.temp))}\u00b0C) "
         f"in {biome.name}. {weather_desc(weather)}"
     )
 
@@ -79,6 +82,17 @@ def weather_embed(biome: models.WeatherBiome, weather: CurrentWeather) -> disnak
             value=WEATHER_DESC.get(weather_detail.id, weather_detail.description),
             inline=False,
         )
+
+    # extreme weather
+    if degrees_f <= 0:
+        embed.add_field(name="Extreme Cold", value=extreme_weather.EXTREME_COLD, inline=False)
+    if degrees_f >= 100:
+        embed.add_field(name="Extreme Heat", value=extreme_weather.EXTREME_HEAT, inline=False)
+    if weather.wind.speed >= 4.4:
+        embed.add_field(name="Strong Wind", value=extreme_weather.STRONG_WIND, inline=False)
+    if extreme_weather.is_heavy_precipitation(weather_detail.id):
+        embed.add_field(name="Heavy Precipitation", value=extreme_weather.HEAVY_PRECIPITATION, inline=False)
+
     return embed
 
 

@@ -6,7 +6,6 @@ from calypso import constants
 ONBOARDING_BUTTON_ID = "onboarding.agree"
 
 
-
 class Onboarding(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
