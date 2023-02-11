@@ -5,7 +5,7 @@ import asyncio
 import datetime
 import json
 import time
-from typing import Any
+from typing import Any, Union
 from urllib.parse import parse_qs, urlparse
 
 import aiohttp
@@ -126,12 +126,12 @@ class CommunityGoals(commands.Cog):
         slug: str = commands.Param(desc="A short ID for the community goal (e.g. enchanter-t1)"),
         description: str = commands.Param(None, desc="The CG's description"),
         image_url: str = commands.Param(None, desc="The CG's image"),
-        log_channel: disnake.abc.Messageable = commands.Param(
+        log_channel: Union[disnake.TextChannel, disnake.Thread] = commands.Param(
             None,
             desc="The channel or thread to post the goal message in (defaults to #community-goals)",
             channel_types=[disnake.ChannelType.text, disnake.ChannelType.public_thread],
         ),
-        contrib_channel: disnake.abc.Messageable = commands.Param(
+        contrib_channel: Union[disnake.TextChannel, disnake.Thread] = commands.Param(
             None,
             desc="The channel or thread used for contributions (defaults to #community-goals)",
             channel_types=[disnake.ChannelType.text, disnake.ChannelType.public_thread],
