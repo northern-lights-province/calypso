@@ -126,17 +126,21 @@ class CommunityGoals(commands.Cog):
         slug: str = commands.Param(desc="A short ID for the community goal (e.g. enchanter-t1)"),
         description: str = commands.Param(None, desc="The CG's description"),
         image_url: str = commands.Param(None, desc="The CG's image"),
-        log_channel: disnake.TextChannel = commands.Param(
-            constants.COMMUNITY_GOAL_CHANNEL_ID,
-            desc="The channel to post the goal message in (defaults to #community-goals)",
-            convert_defaults=True,
+        log_channel: disnake.abc.Messageable = commands.Param(
+            None,
+            desc="The channel or thread to post the goal message in (defaults to #community-goals)",
+            channel_types=[disnake.ChannelType.text, disnake.ChannelType.public_thread],
         ),
-        contrib_channel: disnake.TextChannel = commands.Param(
-            constants.COMMUNITY_GOAL_CHANNEL_ID,
-            desc="The channel used for contributions (defaults to #community-goals)",
-            convert_defaults=True,
+        contrib_channel: disnake.abc.Messageable = commands.Param(
+            None,
+            desc="The channel or thread used for contributions (defaults to #community-goals)",
+            channel_types=[disnake.ChannelType.text, disnake.ChannelType.public_thread],
         ),
     ):
+        if log_channel is None:
+            log_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
+        if contrib_channel is None:
+            contrib_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
         cost_cp = int(cost * 100)
         if not cost_cp > 0:
             raise UserInputError("The goal cost must be at least 0.01gp.")
@@ -264,7 +268,7 @@ class CommunityGoals(commands.Cog):
 
     async def _update_avrae_gvar(self):
         async with db.async_session() as session:
-            cgs = await queries.get_all_cgs(session)
+            cgs = await queries.get_active_cgs(session)
         data = [cg.to_dict() for cg in cgs]
         await self.client.set_gvar(CG_GVAR_ID, json.dumps(data))
 
