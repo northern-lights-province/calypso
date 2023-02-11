@@ -49,6 +49,8 @@ class CommunityGoal(Base):
     message_id = Column(BigInteger, nullable=True)
     description = Column(String, nullable=True)
     image_url = Column(String, nullable=True)
+    log_channel_id = Column(BigInteger, nullable=True)
+    contrib_channel_id = Column(BigInteger, nullable=True)
 
     contributions = relationship("CommunityGoalContribution", back_populates="goal")
 
@@ -62,6 +64,8 @@ class CommunityGoal(Base):
             "message_id": self.message_id,
             "description": self.description,
             "image_url": self.image_url,
+            "log_channel_id": self.log_channel_id,
+            "contrib_channel_id": self.contrib_channel_id,
         }
 
 

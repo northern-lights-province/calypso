@@ -35,14 +35,6 @@ class CommunityGoals(commands.Cog):
     # ==== message listener ====
     @commands.Cog.listener()
     async def on_message(self, message: disnake.Message):
-        # ignore it if it's not in cg channel, from Calypso, or from a staff member with [nodelete]
-        if message.channel.id != constants.COMMUNITY_GOAL_CHANNEL_ID:
-            return
-        if message.author.id == self.bot.user.id:
-            return
-        if constants.STAFF_ROLE_ID in {r.id for r in message.author.roles} and "[nodelete]" in message.content:
-            return
-
         # if it's from avrae and has an embed with a thumb...
         if (
             message.author.id == constants.AVRAE_ID
@@ -52,6 +44,13 @@ class CommunityGoals(commands.Cog):
             await self._handle_avrae_cg_thumb(message, thumb_url)
 
         # set a task to try deleting the message in 1 minute
+        # ignore it if it's not in cg channel, from Calypso, or from a staff member with [nodelete]
+        if message.channel.id != constants.COMMUNITY_GOAL_CHANNEL_ID:
+            return
+        if message.author.id == self.bot.user.id:
+            return
+        if constants.STAFF_ROLE_ID in {r.id for r in message.author.roles} and "[nodelete]" in message.content:
+            return
         await asyncio.sleep(60)
         try:
             await message.delete()
@@ -78,10 +77,9 @@ class CommunityGoals(commands.Cog):
         except CalypsoError:
             sig_verified = False
         else:
-            # if the channel, time, scope, and workshop id don't all match, error
+            # if the time, scope, and workshop id don't all match, error
             sig_verified = (
-                signature.channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID
-                and signature.scope == "SERVER_ALIAS"
+                signature.scope == "SERVER_ALIAS"
                 and signature.workshop_collection_id == CG_WORKSHOP_ID
                 and signature.timestamp > (time.time() - 15)
                 and signature.user_data == 7
@@ -111,7 +109,7 @@ class CommunityGoals(commands.Cog):
         # if the cg is now fully funded, notify the staff
         if cg.funded_cp >= cg.cost_cp:
             log_channel = self.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
-            await log_channel.send(f"<@&{constants.STAFF_ROLE_ID}> The {cg.name} community goal is now fully funded!")
+            await log_channel.send(f"<@&{constants.STAFF_ROLE_ID}> The {cg.name} goal is now fully funded!")
 
     # ==== admin commands ====
     @commands.slash_command(name="cg", description="Manage community goals", guild_ids=[constants.GUILD_ID])
@@ -128,12 +126,29 @@ class CommunityGoals(commands.Cog):
         slug: str = commands.Param(desc="A short ID for the community goal (e.g. enchanter-t1)"),
         description: str = commands.Param(None, desc="The CG's description"),
         image_url: str = commands.Param(None, desc="The CG's image"),
+        log_channel: disnake.TextChannel = commands.Param(
+            constants.COMMUNITY_GOAL_CHANNEL_ID,
+            desc="The channel to post the goal message in (defaults to #community-goals)",
+            convert_defaults=True,
+        ),
+        contrib_channel: disnake.TextChannel = commands.Param(
+            constants.COMMUNITY_GOAL_CHANNEL_ID,
+            desc="The channel used for contributions (defaults to #community-goals)",
+            convert_defaults=True,
+        ),
     ):
         cost_cp = int(cost * 100)
         if not cost_cp > 0:
             raise UserInputError("The goal cost must be at least 0.01gp.")
         new_cg = models.CommunityGoal(
-            name=name, slug=slug, cost_cp=cost_cp, description=description, image_url=image_url, funded_cp=0
+            name=name,
+            slug=slug,
+            cost_cp=cost_cp,
+            description=description,
+            image_url=image_url,
+            funded_cp=0,
+            log_channel_id=log_channel.id,
+            contrib_channel_id=contrib_channel.id,
         )
 
         # post to cg channel
@@ -226,11 +241,11 @@ class CommunityGoals(commands.Cog):
 
     # ==== utils ====
     async def _send_cg_message(self, cg: models.CommunityGoal):
-        cg_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
+        cg_channel = self.bot.get_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         return await cg_channel.send(embed=await cg_embed(cg))
 
     async def _edit_cg_message(self, cg: models.CommunityGoal):
-        cg_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
+        cg_channel = self.bot.get_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         msg = cg_channel.get_partial_message(cg.message_id)
         try:
             await msg.edit(embed=await cg_embed(cg))
@@ -240,7 +255,7 @@ class CommunityGoals(commands.Cog):
     async def _delete_cg_message(self, cg: models.CommunityGoal):
         if cg.message_id is None:
             return
-        cg_channel = self.bot.get_channel(constants.COMMUNITY_GOAL_CHANNEL_ID)
+        cg_channel = self.bot.get_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         msg = cg_channel.get_partial_message(cg.message_id)
         try:
             await msg.delete()
