@@ -44,9 +44,11 @@ class Onboarding(commands.Cog):
             return await interaction.send("You have already agreed to the rules.", ephemeral=True)
         # user is new, add the member role and welcome them in general
         await interaction.send(
-            "Welcome to the Northern Lights Province!\nYou now have access to the rest of the server. Come say hello"
-            f" in <#{constants.GENERAL_CHANNEL_ID}> and take a look at our resources channels (just below this channel)"
-            " to get started!",
+            (
+                "Welcome to the Northern Lights Province!\nYou now have access to the rest of the server. Come say"
+                f" hello in <#{constants.GENERAL_CHANNEL_ID}> and take a look at our resources channels (just below"
+                " this channel) to get started!"
+            ),
             ephemeral=True,
         )
         await member.add_roles(interaction.guild.get_role(constants.MEMBER_ROLE_ID), reason="Accepted rules")

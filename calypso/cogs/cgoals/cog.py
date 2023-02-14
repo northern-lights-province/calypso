@@ -299,7 +299,7 @@ class CommunityGoals(commands.Cog):
             contributions = await queries.get_cg_contribution_leaderboard(session, cg.id)
         leaderboard = ""
         if contributions:
-            top_3_emoji = ("\U0001F947", "\U0001F948", "\U0001F949")  # first_place - third_place
+            top_3_emoji = ("\U0001f947", "\U0001f948", "\U0001f949")  # first_place - third_place
             for emoji, (user_id, amount_cp) in zip(top_3_emoji, contributions):
                 leaderboard += f"{emoji} <@{user_id}> - {amount_cp / 100 :.2f} gp\n"
 
@@ -321,6 +321,6 @@ class CommunityGoals(commands.Cog):
         else:
             contrib_channel = self.bot.get_channel(cg.contrib_channel_id)
             embed.set_footer(
-                text=f"Contribute to this goal by running !cg {cg.slug} <amount> in {contrib_channel.name}!"
+                text=f"Contribute to this goal by running !cg {cg.slug} <amount> in #{contrib_channel.name}!"
             )
         return embed
