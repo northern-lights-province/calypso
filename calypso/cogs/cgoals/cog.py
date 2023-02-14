@@ -246,13 +246,13 @@ class CommunityGoals(commands.Cog):
     # ==== utils ====
     async def _send_cg_message(self, cg: models.CommunityGoal):
         cg_channel = self.bot.get_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
-        return await cg_channel.send(embed=await cg_embed(cg))
+        return await cg_channel.send(embed=await self._cg_embed(cg))
 
     async def _edit_cg_message(self, cg: models.CommunityGoal):
         cg_channel = self.bot.get_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         msg = cg_channel.get_partial_message(cg.message_id)
         try:
-            await msg.edit(embed=await cg_embed(cg))
+            await msg.edit(embed=await self._cg_embed(cg))
         except disnake.HTTPException:
             pass
 
@@ -272,50 +272,55 @@ class CommunityGoals(commands.Cog):
         data = [cg.to_dict() for cg in cgs]
         await self.client.set_gvar(CG_GVAR_ID, json.dumps(data))
 
+    async def _cg_embed(self, cg: models.CommunityGoal) -> disnake.Embed:
+        is_finished = cg.funded_cp >= cg.cost_cp
+        percent_complete = min(cg.funded_cp / cg.cost_cp, 1)
+        if not is_finished:
+            start_r, start_g, start_b = CG_START_COLOR.to_rgb()
+            end_r, end_g, end_b = CG_END_COLOR.to_rgb()
+            dred = end_r - start_r
+            dgrn = end_g - start_g
+            dblu = end_b - start_b
+            color = disnake.Colour.from_rgb(
+                start_r + int(dred * percent_complete),
+                start_g + int(dgrn * percent_complete),
+                start_b + int(dblu * percent_complete),
+            )
 
-async def cg_embed(cg: models.CommunityGoal) -> disnake.Embed:
-    is_finished = cg.funded_cp >= cg.cost_cp
-    percent_complete = min(cg.funded_cp / cg.cost_cp, 1)
-    if not is_finished:
-        start_r, start_g, start_b = CG_START_COLOR.to_rgb()
-        end_r, end_g, end_b = CG_END_COLOR.to_rgb()
-        dred = end_r - start_r
-        dgrn = end_g - start_g
-        dblu = end_b - start_b
-        color = disnake.Colour.from_rgb(
-            start_r + int(dred * percent_complete),
-            start_g + int(dgrn * percent_complete),
-            start_b + int(dblu * percent_complete),
-        )
+            n_equals = int(30 * percent_complete)
+            n_spaces = 30 - n_equals
+            progress_bar = f"```ini\n[{'=' * n_equals}>{' ' * n_spaces}]\n```"
+        else:
+            color = CG_COMPLETE_COLOR
+            progress_bar = "```diff\n+ Goal complete! +\n```"
 
-        n_equals = int(30 * percent_complete)
-        n_spaces = 30 - n_equals
-        progress_bar = f"```ini\n[{'=' * n_equals}>{' ' * n_spaces}]\n```"
-    else:
-        color = CG_COMPLETE_COLOR
-        progress_bar = "```diff\n+ Goal complete! +\n```"
+        # leaderboard
+        async with db.async_session() as session:
+            contributions = await queries.get_cg_contribution_leaderboard(session, cg.id)
+        leaderboard = ""
+        if contributions:
+            top_3_emoji = ("\U0001F947", "\U0001F948", "\U0001F949")  # first_place - third_place
+            for emoji, (user_id, amount_cp) in zip(top_3_emoji, contributions):
+                leaderboard += f"{emoji} <@{user_id}> - {amount_cp / 100 :.2f} gp\n"
 
-    # leaderboard
-    async with db.async_session() as session:
-        contributions = await queries.get_cg_contribution_leaderboard(session, cg.id)
-    leaderboard = ""
-    if contributions:
-        top_3_emoji = ("\U0001F947", "\U0001F948", "\U0001F949")  # first_place - third_place
-        for emoji, (user_id, amount_cp) in zip(top_3_emoji, contributions):
-            leaderboard += f"{emoji} <@{user_id}> - {amount_cp / 100 :.2f} gp\n"
-
-    embed = disnake.Embed()
-    embed.title = cg.name
-    embed.colour = color
-    embed.description = f"ID: `{cg.slug}`"
-    if cg.description is not None:
-        embed.description = f"ID: `{cg.slug}`\n*Goal: {cg.description}*"
-    if cg.image_url is not None:
-        embed.set_image(cg.image_url)
-    embed.add_field(name="Cost", value=f"{cg.cost_cp / 100:,.2f} gp", inline=True)
-    embed.add_field(name="Contributed", value=f"{cg.funded_cp / 100:,.2f} gp ({percent_complete:.1%})", inline=True)
-    embed.add_field(name="Progress", value=progress_bar, inline=False)
-    if leaderboard:
-        embed.add_field(name="Leaderboard", value=leaderboard, inline=False)
-    embed.set_footer(text=f"Contribute to this goal with !cg {cg.slug} <amount>!")
-    return embed
+        embed = disnake.Embed()
+        embed.title = cg.name
+        embed.colour = color
+        embed.description = f"ID: `{cg.slug}`"
+        if cg.description is not None:
+            embed.description = f"ID: `{cg.slug}`\n*Goal: {cg.description}*"
+        if cg.image_url is not None:
+            embed.set_image(cg.image_url)
+        embed.add_field(name="Cost", value=f"{cg.cost_cp / 100:,.2f} gp", inline=True)
+        embed.add_field(name="Contributed", value=f"{cg.funded_cp / 100:,.2f} gp ({percent_complete:.1%})", inline=True)
+        embed.add_field(name="Progress", value=progress_bar, inline=False)
+        if leaderboard:
+            embed.add_field(name="Leaderboard", value=leaderboard, inline=False)
+        if cg.log_channel_id == cg.contrib_channel_id:
+            embed.set_footer(text=f"Contribute to this goal with !cg {cg.slug} <amount>!")
+        else:
+            contrib_channel = self.bot.get_channel(cg.contrib_channel_id)
+            embed.set_footer(
+                text=f"Contribute to this goal by running !cg {cg.slug} <amount> in {contrib_channel.name}!"
+            )
+        return embed
