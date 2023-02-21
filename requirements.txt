@@ -1,4 +1,4 @@
-aiosqlite~=0.17.0
+asyncpg==0.27.0
 d20~=1.1.2
 disnake==2.7.0
 gspread==5.7.0
