@@ -93,6 +93,7 @@ class CommunityGoals(commands.Cog):
         slug = qs["slug"][0]
         async with db.async_session() as session:
             cg = await queries.get_cg_by_slug(session, slug)
+            funding_before = cg.funded_cp
             cg.funded_cp += amt_cp
             contribution = models.CommunityGoalContribution(
                 goal_id=cg.id,
@@ -106,10 +107,14 @@ class CommunityGoals(commands.Cog):
         await self._update_avrae_gvar()
         await message.add_reaction("\u2705")  # green check mark
 
-        # if the cg is now fully funded, notify the staff
+        # if the cg is now 50%, 80%, or fully funded, notify the staff
+        log_channel = self.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
         if cg.funded_cp >= cg.cost_cp:
-            log_channel = self.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
             await log_channel.send(f"<@&{constants.STAFF_ROLE_ID}> The {cg.name} goal is now fully funded!")
+        elif cg.funded_cp >= cg.cost_cp * 0.8 > funding_before:
+            await log_channel.send(f"<@&{constants.STAFF_ROLE_ID}> The {cg.name} goal is now *80%* funded!")
+        elif cg.funded_cp >= cg.cost_cp * 0.5 > funding_before:
+            await log_channel.send(f"<@&{constants.STAFF_ROLE_ID}> The {cg.name} goal is now *50%* funded!")
 
     # ==== admin commands ====
     @commands.slash_command(name="cg", description="Manage community goals", guild_ids=[constants.GUILD_ID])
