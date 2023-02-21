@@ -54,7 +54,8 @@ class CommunityGoal(Base):
 
     contributions = relationship("CommunityGoalContribution", back_populates="goal")
 
-    def to_dict(self):
+    def to_avrae_dict(self):
+        """Used to push CG data to avrae - not all fields represented here."""
         return {
             "id": self.id,
             "name": self.name,
@@ -62,7 +63,6 @@ class CommunityGoal(Base):
             "cost_cp": self.cost_cp,
             "funded_cp": self.funded_cp,
             "message_id": self.message_id,
-            "description": self.description,
             "image_url": self.image_url,
             "log_channel_id": self.log_channel_id,
             "contrib_channel_id": self.contrib_channel_id,
