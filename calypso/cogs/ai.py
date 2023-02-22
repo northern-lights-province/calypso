@@ -1,22 +1,17 @@
 import asyncio
 
-import aiohttp
 import disnake
 from disnake.ext import commands
 
-from calypso import config, constants
-from calypso.openai_api import OpenAIClient
+from calypso import Calypso, constants
 from calypso.utils.functions import chunk_text
-
-ABILITY_AUTOMATION_MODEL = "curie:ft-ccb-lab-members-2022-12-25-19-34-58"
 
 
 class AIUtils(commands.Cog):
     """Various AI utilities for players and DMs."""
 
     def __init__(self, bot):
-        self.bot: commands.Bot = bot
-        self.client = OpenAIClient(aiohttp.ClientSession(loop=bot.loop), config.OPENAI_API_KEY)
+        self.bot: Calypso = bot
 
     @commands.slash_command(name="ai", description="AI utilities", guild_ids=[constants.GUILD_ID])
     async def ai(self, inter: disnake.ApplicationCommandInteraction):
@@ -59,8 +54,8 @@ class AIUtils(commands.Cog):
 
         # build prompt and query GPT-3
         prompt = f"{monster}: {ability}\n{ability_text}\n###\n"
-        completion = await self.client.create_completion(
-            model=ABILITY_AUTOMATION_MODEL,
+        completion = await self.bot.openai.create_completion(
+            model=constants.ABILITY_AUTOMATION_MODEL,
             prompt=prompt,
             temperature=0.1,
             max_tokens=1024,
