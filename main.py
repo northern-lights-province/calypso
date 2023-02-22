@@ -15,6 +15,7 @@ COGS = (
     "calypso.cogs.encounters",
     "calypso.cogs.cgoals",
     "calypso.cogs.ai",
+    "calypso.cogs.utils",
 )
 
 logging.basicConfig(level=logging.INFO)

@@ -93,6 +93,7 @@ class CommunityGoals(commands.Cog):
         slug = qs["slug"][0]
         async with db.async_session() as session:
             cg = await queries.get_cg_by_slug(session, slug)
+            funding_before = cg.funded_cp
             cg.funded_cp += amt_cp
             contribution = models.CommunityGoalContribution(
                 goal_id=cg.id,
@@ -106,10 +107,18 @@ class CommunityGoals(commands.Cog):
         await self._update_avrae_gvar()
         await message.add_reaction("\u2705")  # green check mark
 
-        # if the cg is now fully funded, notify the staff
+        # if the cg is now 50%, 80%, or fully funded, notify the staff
+        if cg.log_channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID:  # only ping for CGs in the global CG channel
+            mention = f"<@&{constants.STAFF_ROLE_ID}>"
+        else:
+            mention = ""
+        log_channel = self.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
         if cg.funded_cp >= cg.cost_cp:
-            log_channel = self.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
-            await log_channel.send(f"<@&{constants.STAFF_ROLE_ID}> The {cg.name} goal is now fully funded!")
+            await log_channel.send(f"{mention} The {cg.name} goal is now fully funded!")
+        elif cg.funded_cp >= cg.cost_cp * 0.8 > funding_before:
+            await log_channel.send(f"{mention} The {cg.name} goal is now *80%* funded!")
+        elif cg.funded_cp >= cg.cost_cp * 0.5 > funding_before:
+            await log_channel.send(f"{mention} The {cg.name} goal is now *50%* funded!")
 
     # ==== admin commands ====
     @commands.slash_command(name="cg", description="Manage community goals", guild_ids=[constants.GUILD_ID])
@@ -269,7 +278,7 @@ class CommunityGoals(commands.Cog):
     async def _update_avrae_gvar(self):
         async with db.async_session() as session:
             cgs = await queries.get_active_cgs(session)
-        data = [cg.to_dict() for cg in cgs]
+        data = [cg.to_avrae_dict() for cg in cgs]
         await self.client.set_gvar(CG_GVAR_ID, json.dumps(data))
 
     async def _cg_embed(self, cg: models.CommunityGoal) -> disnake.Embed:
