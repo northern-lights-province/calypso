@@ -2,7 +2,7 @@ import asyncio
 import itertools
 import logging
 import re
-from typing import List
+from typing import Iterator, List
 
 import gspread
 from pydantic import BaseModel
@@ -33,6 +33,11 @@ class Tier(BaseModel):
 
 class EncounterRepository:
     tiers: List[Tier] = []
+
+    @classmethod
+    def all_encounters(cls) -> Iterator[Encounter]:
+        for tier in cls.tiers:
+            yield from tier.encounters
 
 
 class EncounterClient:
@@ -77,6 +82,13 @@ class EncounterClient:
         async with self._refresh_lock:
             log.info("Refreshing encounters from google sheet...")
             await asyncio.get_event_loop().run_in_executor(None, self._do_refresh)
+        n_encounters = sum(len(t.encounters) for t in EncounterRepository.tiers)
+        n_tiers = len(EncounterRepository.tiers)
+        log.info(f"Refreshed encounters - loaded {n_encounters} encounters across {n_tiers} biome-tiers")
+
+    def refresh_encounters_sync(self):
+        log.info("Refreshing encounters from google sheet - bypassing lock for sync!")
+        self._do_refresh()
         n_encounters = sum(len(t.encounters) for t in EncounterRepository.tiers)
         n_tiers = len(EncounterRepository.tiers)
         log.info(f"Refreshed encounters - loaded {n_encounters} encounters across {n_tiers} biome-tiers")

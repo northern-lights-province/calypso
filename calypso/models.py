@@ -79,3 +79,30 @@ class CommunityGoalContribution(Base):
     timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
 
     goal = relationship("CommunityGoal", back_populates="contributions")
+
+
+# ==== encounters ====
+class EncounterChannel(Base):
+    __tablename__ = "enc_channels"
+
+    channel_id = Column(BigInteger, primary_key=True)
+    name = Column(String, nullable=False)
+    desc = Column(String, nullable=False)
+    recommended_level = Column(String, nullable=False)
+    onward_travel = Column(String, nullable=False)
+    image_url = Column(String, nullable=True)
+    enc_table_name = Column(String, nullable=False)
+    pinned_message_id = Column(BigInteger, nullable=False)
+
+
+class RolledEncounter(Base):
+    __tablename__ = "enc_encounter_log"
+
+    id = Column(Integer, primary_key=True)
+    channel_id = Column(BigInteger, nullable=False)
+    author_id = Column(BigInteger, nullable=False)
+    timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    biome_name = Column(String, nullable=False)
+    tier = Column(Integer, nullable=False)
+    rendered_text = Column(String, nullable=False)
+    biome_text = Column(String, nullable=True)
