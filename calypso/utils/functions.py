@@ -1,7 +1,12 @@
 __all__ = (
     "chunk_text",
     "smart_trim",
+    "multiline_modal",
 )
+
+import asyncio
+
+import disnake
 
 
 def chunk_text(text, max_chunk_size=1024, chunk_on=("\n\n", "\n", ". ", ", ", " "), chunker_i=0):
@@ -44,3 +49,41 @@ def smart_trim(text, max_len=1024, dots="..."):
     if len(chunks) > 1:
         return f"{chunks[0]}{dots}"
     return out
+
+
+async def multiline_modal(
+    inter: disnake.CommandInteraction, title: str, label: str, max_length: int = None, timeout: int = None
+) -> tuple[disnake.ModalInteraction, str]:
+    """
+    Reply to an interaction with a modal to get some multiline text input because Discord doesn't have this in normal
+    parameters for some godforsaken reason
+
+    :param inter: The interaction to reply with a modal to
+    :param title: The title for the modal
+    :param label: The label for the text field
+    :param max_length: The max length of the input
+    :param timeout: The max time to wait
+    :return: A tuple for the followup interaction and the input
+    :raises asyncio.TimeoutError: on timeout
+    """
+    # Discord pls add multiline text inputs
+    # it's been years
+    # :(
+    await inter.response.send_modal(
+        title=title,
+        custom_id=str(inter.id),
+        components=disnake.ui.TextInput(
+            label=label,
+            custom_id="value",
+            style=disnake.TextInputStyle.paragraph,
+            max_length=max_length,
+        ),
+    )
+    try:
+        modal_inter: disnake.ModalInteraction = await inter.bot.wait_for(
+            "modal_submit", check=lambda mi: mi.custom_id == str(inter.id), timeout=timeout
+        )
+    except asyncio.TimeoutError:
+        raise
+    ability_text = modal_inter.text_values["value"]
+    return modal_inter, ability_text
