@@ -9,6 +9,7 @@ import disnake
 from disnake.ext import commands
 
 from calypso import constants
+from . import matcha
 from .client import EncounterClient, EncounterRepository
 from .params import biome_param
 
@@ -41,7 +42,13 @@ class Encounters(commands.Cog):
         encounter = tier_obj.encounters[idx]
 
         # render the encounter text
-        encounter_text = re.sub(r"\{(.+?)}", lambda match: d20.roll(match.group(1)).result, encounter.text)
+        encounter_text = encounter.text
+        # monster links
+        referenced_monsters = matcha.extract_monsters(encounter.text)
+        for mon, pos in matcha.list_to_pairs(referenced_monsters):
+            encounter_text = encounter_text[:pos] + f"[{mon.name}]({mon.url})" + encounter_text[pos + len(mon.name) :]
+        # rolls
+        encounter_text = re.sub(r"\{(.+?)}", lambda match: d20.roll(match.group(1)).result, encounter_text)
 
         # roll the encounter template dice
         embed = disnake.Embed(

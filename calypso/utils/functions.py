@@ -1,3 +1,9 @@
+__all__ = (
+    "chunk_text",
+    "smart_trim",
+)
+
+
 def chunk_text(text, max_chunk_size=1024, chunk_on=("\n\n", "\n", ". ", ", ", " "), chunker_i=0):
     """
     Recursively chunks *text* into a list of str, with each element no longer than *max_chunk_size*.

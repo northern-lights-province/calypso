@@ -4,7 +4,7 @@ import traceback
 import disnake
 from disnake.ext import commands
 
-from calypso import Calypso, config, db, errors
+from calypso import Calypso, config, db, errors, gamedata
 
 COGS = (
     "calypso.cogs.weather",
@@ -47,5 +47,6 @@ for cog in COGS:
     bot.load_extension(cog)
 
 if __name__ == "__main__":
+    gamedata.GamedataRepository.reload()
     bot.loop.create_task(db.init_db())
     bot.run(config.TOKEN)
