@@ -108,7 +108,9 @@ class CommunityGoals(commands.Cog):
         await message.add_reaction("\u2705")  # green check mark
 
         # if the cg is now 50%, 80%, or fully funded, notify the staff
-        if cg.log_channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID:  # only ping for CGs in the global CG channel
+        if (
+            cg.log_channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID or cg.log_channel_id is None
+        ):  # only ping for CGs in the global CG channel
             mention = f"<@&{constants.STAFF_ROLE_ID}>"
         else:
             mention = ""
