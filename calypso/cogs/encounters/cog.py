@@ -12,6 +12,7 @@ from disnake.ext import commands
 from calypso import Calypso, constants, db, models
 from calypso.utils.functions import multiline_modal
 from . import matcha, queries
+from .ai import EncounterHelperController
 from .client import EncounterClient, EncounterRepository
 from .params import biome_param
 
@@ -26,10 +27,23 @@ class Encounters(commands.Cog):
     async def enc(
         self,
         inter: disnake.ApplicationCommandInteraction,
-        biome: str = biome_param(desc="The biome to roll an encounter in."),
         tier: int = commands.Param(gt=0, desc="The encounter tier to roll."),
+        biome: str = biome_param(None, desc="The biome to roll an encounter in (disables AI assist features)."),
         private: bool = commands.Param(True, desc="Whether to send the result as a private message or not."),
     ):
+        # get biome from channel link
+        if biome is None:
+            async with db.async_session() as session:
+                echannel = await queries.get_encounter_channel(session, inter.channel_id)
+                if echannel is None:
+                    return await inter.send(
+                        f"This channel does not have a linked encounter table. Please roll in the in-character channel,"
+                        f" or supply the `biome` argument."
+                    )
+                biome = echannel.enc_table_name
+        else:
+            echannel = None
+
         # find the biome and tier
         biome_tiers = [t for t in EncounterRepository.tiers if t.biome == biome]
         if not biome_tiers:
@@ -59,13 +73,41 @@ class Encounters(commands.Cog):
         # rolls
         encounter_text = re.sub(r"\{(.+?)}", lambda match: d20.roll(match.group(1)).result, encounter_text)
 
-        # roll the encounter template dice
+        # save the encounter to db
+        async with db.async_session() as session:
+            rolled_encounter = models.RolledEncounter(
+                channel_id=inter.channel_id,
+                author_id=inter.author.id,
+                table_name=biome,
+                tier=tier,
+                rendered_text=encounter_text,
+                monster_ids=",".join(map(str, (m.id for m, _ in referenced_monsters))),
+                biome_name=echannel.name if echannel else None,
+                biome_text=echannel.desc if echannel else None,
+            )
+            session.add(rolled_encounter)
+            await session.commit()
+
+        # send the message, with options for AI assist
         embed = disnake.Embed(
             title="Rolling for random encounter...",
             description=f"**{biome} - Tier {tier}**\nRoll: {roll_result}\n\n{encounter_text}",
             colour=disnake.Colour.random(),
         )
-        await inter.send(embed=embed, ephemeral=private)
+
+        # set up AI helper if in ic channel
+        ai_helper = None
+        if echannel:
+            ai_helper = EncounterHelperController(
+                inter.author, encounter=rolled_encounter, monsters=[m for m, _ in referenced_monsters], embed=embed
+            )
+
+        # and send message
+        if ai_helper:
+            # message control is deferred to the ai controller here
+            await inter.send(embed=embed, ephemeral=private, view=ai_helper)
+        else:
+            await inter.send(embed=embed, ephemeral=private)
 
         # if the encounter was private, send a copy to the staff log
         if private:
@@ -80,6 +122,7 @@ class Encounters(commands.Cog):
     @commands.slash_command(description="Reload the encounter repository", guild_ids=[constants.GUILD_ID])
     @commands.default_member_permissions(manage_guild=True)
     async def reload_encounters(self, inter: disnake.ApplicationCommandInteraction):
+        await inter.response.defer()
         await self.client.refresh_encounters()
         n_encounters = sum(len(t.encounters) for t in EncounterRepository.tiers)
         n_tiers = len(EncounterRepository.tiers)

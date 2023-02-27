@@ -1,12 +1,14 @@
+import asyncio
+import re
+
+import disnake
+
 __all__ = (
     "chunk_text",
     "smart_trim",
     "multiline_modal",
+    "camel_to_title",
 )
-
-import asyncio
-
-import disnake
 
 
 def chunk_text(text, max_chunk_size=1024, chunk_on=("\n\n", "\n", ". ", ", ", " "), chunker_i=0):
@@ -87,3 +89,7 @@ async def multiline_modal(
         raise
     ability_text = modal_inter.text_values["value"]
     return modal_inter, ability_text
+
+
+def camel_to_title(string):
+    return re.sub(r"((?<=[a-z])[A-Z]|(?<!\A)[A-Z](?=[a-z]))", r" \1", string).title()

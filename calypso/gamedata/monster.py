@@ -6,6 +6,9 @@ from typing import Optional, Union
 from automation_common.validation.models import AttackModel
 from pydantic import BaseModel, Field
 
+from calypso import constants
+from calypso.utils import camel_to_title
+
 log = logging.getLogger(__name__)
 
 
@@ -32,6 +35,16 @@ class AbilityScores(BaseModel):
     def __getitem__(self, item):
         return getattr(self, item)
 
+    def __str__(self):
+        return (
+            f"STR: {self.strength} ({(self.strength - 10) // 2:+})\n"
+            f"DEX: {self.dexterity} ({(self.dexterity - 10) // 2:+})\n"
+            f"CON: {self.constitution} ({(self.constitution - 10) // 2:+})\n"
+            f"INT: {self.intelligence} ({(self.intelligence - 10) // 2:+})\n"
+            f"WIS: {self.wisdom} ({(self.wisdom - 10) // 2:+})\n"
+            f"CHA: {self.charisma} ({(self.charisma - 10) // 2:+})"
+        )
+
 
 class Skill(BaseModel):
     value: int
@@ -49,6 +62,14 @@ class Saves(BaseModel):
 
     def __getitem__(self, item) -> Skill:
         return getattr(self, item)
+
+    def __str__(self):
+        out = []
+        for stat_name, save_key in zip(constants.STAT_NAMES, constants.SAVE_NAMES):
+            save = self[save_key]
+            if (save.prof and save.prof > 0.5) or save.bonus:
+                out.append(f"{stat_name.title()} {save.value:+}")
+        return ", ".join(out)
 
 
 class Skills(BaseModel):
@@ -81,11 +102,26 @@ class Skills(BaseModel):
     def __getitem__(self, item) -> Skill:
         return getattr(self, item)
 
+    def __str__(self):
+        out = []
+        for skill_name in constants.SKILL_NAMES:
+            skill = self[skill_name]
+            if (skill.prof and skill.prof > 0.5) or skill.bonus:
+                out.append(f"{camel_to_title(skill_name)} {skill.value:+}")
+        return ", ".join(out)
+
 
 class Resistance(BaseModel):
     dtype: str
     unless: Optional[list[str]]
     only: Optional[list[str]]
+
+    def __str__(self):
+        out = []
+        out.extend(f"non{u}" for u in self.unless)
+        out.extend(self.only)
+        out.append(self.dtype)
+        return " ".join(out)
 
 
 class Resistances(BaseModel):
@@ -176,6 +212,12 @@ class Monster(BaseModel):
     @cached_property
     def name_re(self) -> re.Pattern:
         return re.compile(rf"\b{re.escape(self.name)}", re.IGNORECASE)
+
+    def get_senses_str(self):
+        if self.senses:
+            return f"{self.senses}, passive Perception {self.passiveperc}"
+        else:
+            return f"passive Perception {self.passiveperc}"
 
 
 def xp_by_cr(cr):
