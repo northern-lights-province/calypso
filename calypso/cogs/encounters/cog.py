@@ -95,9 +95,9 @@ class Encounters(commands.Cog):
             colour=disnake.Colour.random(),
         )
 
-        # set up AI helper if in ic channel
+        # set up AI helper if in ic channel and matched monsters (todo: maybe not necessary)
         ai_helper = None
-        if echannel:
+        if echannel and referenced_monsters:
             ai_helper = EncounterHelperController(
                 inter.author, encounter=rolled_encounter, monsters=[m for m, _ in referenced_monsters], embed=embed
             )

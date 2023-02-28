@@ -4,6 +4,7 @@ from functools import partial
 import disnake.ui
 
 from calypso import constants, db, gamedata, models
+from . import queries
 
 SUMMARY_HYPERPARAMS = dict(
     model="text-davinci-003",
@@ -38,16 +39,30 @@ class EncounterHelperController(disnake.ui.View):
         self.embed = embed
         self.summary_field_idx = None
         self.summary_id = None
-        # buttons in initial state
-        self.add_item(
-            ButtonWithCallback(
-                self.generate_summary,
-                label="Help me understand the monsters",
-                emoji="\U0001f916",  # :robot:
-                style=disnake.ButtonStyle.primary,
-                row=0,
-            )
+        # buttons
+        self._b_generate_summary = ButtonWithCallback(
+            self.generate_summary,
+            label="Help me understand the monsters",
+            emoji="\U0001f916",  # :robot:
+            style=disnake.ButtonStyle.primary,
+            row=0,
         )
+        self._b_summary_feedback_pos = ButtonWithCallback(
+            self.summary_feedback_pos,
+            label="The summary was helpful!",
+            emoji="\U0001f604",  # :grin:
+            style=disnake.ButtonStyle.success,
+            row=0,
+        )
+        self._b_summary_feedback_neg = ButtonWithCallback(
+            self.summary_feedback_neg,
+            label="The summary wasn't that helpful.",
+            emoji="\U0001f615",  # :confused:
+            style=disnake.ButtonStyle.danger,
+            row=0,
+        )
+        # buttons in initial state
+        self.add_item(self._b_generate_summary)
 
     # ==== d.py overrides and helpers ====
     async def interaction_check(self, interaction: disnake.Interaction) -> bool:
@@ -102,24 +117,8 @@ class EncounterHelperController(disnake.ui.View):
 
         # button wrangling
         self.remove_item(button)
-        self.add_item(
-            ButtonWithCallback(
-                self.summary_feedback_pos,
-                label="The summary was helpful!",
-                emoji="\U0001f604",  # :grin:
-                style=disnake.ButtonStyle.success,
-                row=0,
-            )
-        )
-        self.add_item(
-            ButtonWithCallback(
-                self.summary_feedback_neg,
-                label="The summary wasn't that helpful.",
-                emoji="\U0001f615",  # :confused:
-                style=disnake.ButtonStyle.danger,
-                row=0,
-            )
-        )
+        self.add_item(self._b_summary_feedback_pos)
+        self.add_item(self._b_summary_feedback_neg)
         await self.refresh_content(interaction, embed=self.embed)
 
         # log it to staff chat
@@ -131,11 +130,25 @@ class EncounterHelperController(disnake.ui.View):
         )
 
     # ---- feedback ----
-    async def summary_feedback_pos(self, _: disnake.ui.Button, interaction: disnake.Interaction):
-        pass
+    async def summary_feedback_pos(self, button: disnake.ui.Button, interaction: disnake.Interaction):
+        async with db.async_session() as session:
+            summary = await queries.get_summary_by_id(session, self.summary_id)
+            summary.feedback = 1
+            await session.commit()
+        button.disabled = True
+        self._b_summary_feedback_neg.disabled = False
+        await self.refresh_content(interaction)
+        await interaction.send("Thanks for the feedback!", ephemeral=True)
 
-    async def summary_feedback_neg(self, _: disnake.ui.Button, interaction: disnake.Interaction):
-        pass
+    async def summary_feedback_neg(self, button: disnake.ui.Button, interaction: disnake.Interaction):
+        async with db.async_session() as session:
+            summary = await queries.get_summary_by_id(session, self.summary_id)
+            summary.feedback = -1
+            await session.commit()
+        button.disabled = True
+        self._b_summary_feedback_pos.disabled = False
+        await self.refresh_content(interaction)
+        await interaction.send("Thanks for the feedback!", ephemeral=True)
 
     # ==== inspiration ====
 

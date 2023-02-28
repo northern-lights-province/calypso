@@ -14,7 +14,7 @@ class CompletionChoice(BaseModel):
     text: str
     index: int
     logprobs: CompletionLogProbs | None
-    finish_reason: str
+    finish_reason: str | None
 
 
 class CompletionUsage(BaseModel):
