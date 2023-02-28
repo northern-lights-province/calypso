@@ -102,7 +102,22 @@ class RolledEncounter(Base):
     channel_id = Column(BigInteger, nullable=False)
     author_id = Column(BigInteger, nullable=False)
     timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
-    biome_name = Column(String, nullable=False)
+    table_name = Column(String, nullable=False)
     tier = Column(Integer, nullable=False)
     rendered_text = Column(String, nullable=False)
-    biome_text = Column(String, nullable=True)
+    monster_ids = Column(String, nullable=True)  # comma-separated list of ids (ints)
+    biome_name = Column(String, nullable=True)
+    biome_text = Column(String, nullable=True)  # None if not in in-character channel (should be ignored in study)
+
+
+class EncounterAISummary(Base):
+    __tablename__ = "enc_summaries"
+
+    id = Column(Integer, primary_key=True)
+    encounter_id = Column(Integer, ForeignKey("enc_encounter_log.id", ondelete="CASCADE"))
+    prompt = Column(String, nullable=False)
+    generation = Column(String, nullable=False)
+    hyperparams = Column(String, nullable=False)
+    feedback = Column(Integer, nullable=True)
+
+    encounter = relationship("RolledEncounter")

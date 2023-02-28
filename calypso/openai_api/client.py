@@ -1,6 +1,7 @@
 from typing import overload
 
 import aiohttp
+import pydantic
 
 from calypso.utils.httpclient import BaseClient
 from .models import Completion
@@ -42,4 +43,7 @@ class OpenAIClient(BaseClient):
 
     async def create_completion(self, model: str, **kwargs):
         data = await self.post("/completions", json={"model": model, **kwargs})
-        return Completion.parse_obj(data)
+        try:
+            return Completion.parse_obj(data)
+        except pydantic.ValidationError:
+            self.logger.exception(f"Failed to deserialize OpenAI response: {data}")
