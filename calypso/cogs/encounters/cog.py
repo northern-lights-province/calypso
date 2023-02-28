@@ -222,7 +222,7 @@ class Encounters(commands.Cog):
 
             await _edit_encchannel_message(channel, existing)
             await session.commit()
-        await inter.send(f"OK, edited {name} in {channel.mention}.")
+        await inter.send(f"OK, edited {existing.name} in {channel.mention}.")
 
     @encadmin_channel.sub_command(
         name="edit-desc",
