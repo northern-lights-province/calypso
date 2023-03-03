@@ -218,7 +218,7 @@ class Encounters(commands.Cog):
             if image_url is not None:
                 existing.image_url = image_url
             if enc_table is not None:
-                existing.enc_table = enc_table
+                existing.enc_table_name = enc_table
 
             await _edit_encchannel_message(channel, existing)
             await session.commit()
