@@ -20,7 +20,8 @@ class GamedataRepository:
     @classmethod
     def reload(cls, data_path=DATA_DIR):
         log.info(f"Reloading gamedata...")
-        cls.monsters = pydantic.parse_file_as(list[Monster], data_path / "monsters.json")
+        monsters = pydantic.parse_file_as(list[Monster], data_path / "monsters.json")
+        cls.monsters = sorted(monsters, key=lambda m: len(m.name), reverse=True)  # Catch longer names first
         cls.monster_descriptions = pydantic.parse_file_as(
             list[MonsterDescription], data_path / "monster_descriptions.json"
         )
