@@ -31,7 +31,10 @@ def extract_monsters(text) -> list[MonsterMatch]:
         monster, poses = best_match
         log.debug(f"\tMatch: {monster.name!r}")
 
-        text = text.replace(monster.name, " " * len(monster.name))  # to keep pos
+        # replace matches with empty space to keep pos
+        monster_name_len = len(monster.name)
+        for pos in poses:
+            text = text[:pos] + " " * monster_name_len + text[pos + monster_name_len :]
 
         log.debug(f"\tNext iteration: {text!r}")
         # remove the matches that no longer match
