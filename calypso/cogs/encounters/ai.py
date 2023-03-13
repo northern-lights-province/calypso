@@ -1,3 +1,4 @@
+import asyncio
 import json
 from functools import partial
 
@@ -138,7 +139,15 @@ class EncounterHelperController(disnake.ui.View):
         button.disabled = True
         self._b_summary_feedback_neg.disabled = False
         await self.refresh_content(interaction)
-        await interaction.send("Thanks for the feedback!", ephemeral=True)
+        await interaction.send(
+            (
+                "Glad I could help! If you have a moment and would like to help me learn, you can give more detailed"
+                " feedback by clicking the button.\nIn the feedback form, you'll be able to tell me why you thought"
+                " this was helpful and optionally make any edits you think would make it even better."
+            ),
+            ephemeral=True,
+            view=FeedbackView(summary),
+        )
 
     async def summary_feedback_neg(self, button: disnake.ui.Button, interaction: disnake.Interaction):
         async with db.async_session() as session:
@@ -148,9 +157,76 @@ class EncounterHelperController(disnake.ui.View):
         button.disabled = True
         self._b_summary_feedback_pos.disabled = False
         await self.refresh_content(interaction)
-        await interaction.send("Thanks for the feedback!", ephemeral=True)
+        await interaction.send(
+            (
+                "Sorry about that! If you have a moment and would like to help me learn, you can give more detailed"
+                " feedback by clicking the button.\nIn the feedback form, you'll be able to tell me why you thought"
+                " this wasn't helpful and optionally make your own edits to help me improve."
+            ),
+            ephemeral=True,
+            view=FeedbackView(summary),
+        )
 
     # ==== inspiration ====
+
+
+# ==== feedback ====
+class FeedbackView(disnake.ui.View):
+    def __init__(self, summary: models.EncounterAISummary, **kwargs):
+        super().__init__(**kwargs)
+        self.summary = summary
+
+    @disnake.ui.button(label="More Feedback", emoji="\U0001f4dd")  # :pencil:
+    async def give_feedback(self, _: disnake.ui.Button, inter: disnake.Interaction):
+        # modal
+        await inter.response.send_modal(
+            title="Encounter Helper Feedback",
+            custom_id=str(inter.id),
+            components=[
+                disnake.ui.TextInput(
+                    label="Detailed Feedback",
+                    custom_id="feedback",
+                    style=disnake.TextInputStyle.paragraph,
+                    placeholder="Why do you think this generation was helpful/not helpful? Be specific.",
+                    required=False,
+                ),
+                disnake.ui.TextInput(
+                    label="Instructions",
+                    custom_id="__instructions_1",
+                    style=disnake.TextInputStyle.paragraph,
+                    value="Below, you can help me learn by editing my response to make it better, if you'd like.",
+                    required=False,
+                ),
+                disnake.ui.TextInput(
+                    label="Your Edit",
+                    custom_id="edit",
+                    style=disnake.TextInputStyle.paragraph,
+                    placeholder="If you'd like, you can edit my response to make it better.",
+                    value=self.summary.generation,
+                    required=False,
+                ),
+            ],
+        )
+        try:
+            modal_inter: disnake.ModalInteraction = await inter.bot.wait_for(
+                "modal_submit", check=lambda mi: mi.custom_id == str(inter.id), timeout=1200
+            )
+        except asyncio.TimeoutError:
+            await inter.author.send(
+                "Sorry, your feedback form timed out. If you have feedback about the encounter helper please ping Zhu!"
+            )
+            return
+
+        # save to db
+        feedback = modal_inter.text_values["feedback"]
+        edit = modal_inter.text_values["edit"]
+        async with db.async_session() as session:
+            feedback_obj = models.EncounterAISummaryFeedback(summary_id=self.summary.id, feedback=feedback, edit=edit)
+            session.add(feedback_obj)
+            await session.commit()
+
+        # user feedback
+        await modal_inter.send("Thanks! Your feedback was recorded.", ephemeral=True)
 
 
 # ==== prompts ====

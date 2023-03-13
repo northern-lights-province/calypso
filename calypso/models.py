@@ -121,3 +121,14 @@ class EncounterAISummary(Base):
     feedback = Column(Integer, nullable=True)
 
     encounter = relationship("RolledEncounter")
+
+
+class EncounterAISummaryFeedback(Base):
+    __tablename__ = "enc_summaries_feedback"
+
+    id = Column(Integer, primary_key=True)
+    summary_id = Column(Integer, ForeignKey("enc_summaries.id", ondelete="CASCADE"))
+    feedback = Column(String, nullable=False)
+    edit = Column(String, nullable=False)
+
+    summary = relationship("EncounterAISummary")

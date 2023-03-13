@@ -2,7 +2,7 @@ import csv
 import json
 import re
 
-RARITY_RE = re.compile("\Wcommon\W")
+RARITY_RE = re.compile("\Wuncommon\W")
 
 
 def rarity_filter():
@@ -35,4 +35,4 @@ def csv_to_json():
 
 
 if __name__ == "__main__":
-    csv_to_json()
+    rarity_filter()
