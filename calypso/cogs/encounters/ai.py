@@ -1,10 +1,11 @@
 import asyncio
 import json
+import random
 from functools import partial
 
 import disnake.ui
 
-from calypso import constants, db, gamedata, models
+from calypso import constants, db, gamedata, models, utils
 from . import queries
 
 SUMMARY_HYPERPARAMS = dict(
@@ -94,7 +95,12 @@ class EncounterHelperController(disnake.ui.View):
         await self.refresh_content(interaction, embed=self.embed)
 
         # generate the summary
-        prompt = summary_prompt(self.encounter, self.monsters)
+        prompt_version = 1 if random.random() < 0.1 else 2  # 10% chance for prompt v1
+        if prompt_version == 1:
+            prompt = summary_prompt_1(self.encounter, self.monsters)
+        else:
+            prompt = summary_prompt_2(self.encounter, self.monsters)
+
         # noinspection PyUnresolvedReferences
         completion = await interaction.bot.openai.create_completion(
             prompt=prompt, user=str(interaction.author.id), **SUMMARY_HYPERPARAMS
@@ -108,6 +114,7 @@ class EncounterHelperController(disnake.ui.View):
                 prompt=prompt,
                 generation=summary,
                 hyperparams=json.dumps(SUMMARY_HYPERPARAMS),
+                prompt_version=prompt_version,
             )
             session.add(summary_obj)
             await session.commit()
@@ -230,52 +237,88 @@ class FeedbackView(disnake.ui.View):
 
 
 # ==== prompts ====
-def summary_prompt(encounter: models.RolledEncounter, monsters: list[gamedata.Monster]) -> str:
+def creature_meta(monster: gamedata.Monster) -> str:
+    ac = str(monster.ac) + (f" ({monster.armortype})" if monster.armortype else "")
+    hp = f"{monster.hp} ({monster.hitdice})"
+    meta = (
+        f"{monster.name}\n"
+        f"{'-' * len(monster.name)}\n"
+        f"Armor Class: {ac}\n"
+        f"Hit Points: {hp}\n"
+        f"Speed: {monster.speed}\n"
+        f"{monster.ability_scores}\n"
+    )
+    if str(monster.saves):
+        meta += f"Saving Throws: {monster.saves}\n"
+    if str(monster.skills):
+        meta += f"Skills: {monster.skills}\n"
+    meta += f"Senses: {monster.get_senses_str()}\n"
+    if monster.display_resists.vuln:
+        meta += f"Vulnerabilities: {', '.join(str(r) for r in monster.display_resists.vuln)}\n"
+    if monster.display_resists.resist:
+        meta += f"Resistances: {', '.join(str(r) for r in monster.display_resists.resist)}\n"
+    if monster.display_resists.immune:
+        meta += f"Damage Immunities: {', '.join(str(r) for r in monster.display_resists.immune)}\n"
+    if monster.condition_immune:
+        meta += f"Condition Immunities: {', '.join(monster.condition_immune)}\n"
+    if monster.languages:
+        meta += f"Languages: {', '.join(monster.languages)}\n"
+    return meta.strip()
+
+
+def creature_desc(monster: gamedata.Monster) -> str:
+    monster_desc = gamedata.GamedataRepository.get_desc_for_monster(monster)
+    desc_parts = []
+    if monster_desc.characteristics:
+        desc_parts.append(monster_desc.characteristics)
+    if monster_desc.long:
+        desc_parts.append(monster_desc.long)
+    return "\n\n".join(desc_parts).strip()
+
+
+def summary_prompt_1(encounter: models.RolledEncounter, monsters: list[gamedata.Monster]) -> str:
     # https://platform.openai.com/playground/p/TgTWenUG110KIdvqvocnzTYW
     creature_info_parts = []
     for monster in monsters:
-        # meta
-        ac = str(monster.ac) + (f" ({monster.armortype})" if monster.armortype else "")
-        hp = f"{monster.hp} ({monster.hitdice})"
-        part = (
-            f"{monster.name}\n"
-            f"{'-' * len(monster.name)}\n"
-            f"Armor Class: {ac}\n"
-            f"Hit Points: {hp}\n"
-            f"Speed: {monster.speed}\n"
-            f"{monster.ability_scores}\n"
-        )
-        if str(monster.saves):
-            part += f"Saving Throws: {monster.saves}\n"
-        if str(monster.skills):
-            part += f"Skills: {monster.skills}\n"
-        part += f"Senses: {monster.get_senses_str()}\n"
-        if monster.display_resists.vuln:
-            part += f"Vulnerabilities: {', '.join(str(r) for r in monster.display_resists.vuln)}\n"
-        if monster.display_resists.resist:
-            part += f"Resistances: {', '.join(str(r) for r in monster.display_resists.resist)}\n"
-        if monster.display_resists.immune:
-            part += f"Damage Immunities: {', '.join(str(r) for r in monster.display_resists.immune)}\n"
-        if monster.condition_immune:
-            part += f"Condition Immunities: {', '.join(monster.condition_immune)}\n"
-        if monster.languages:
-            part += f"Languages: {', '.join(monster.languages)}\n"
-
-        # desc
-        monster_desc = gamedata.GamedataRepository.get_desc_for_monster(monster)
-        desc_parts = []
-        if monster_desc.characteristics:
-            desc_parts.append(monster_desc.characteristics)
-        if monster_desc.long:
-            desc_parts.append(monster_desc.long)
-        desc_part = "\n\n".join(desc_parts)
-
-        creature_info_parts.append(f"{part.strip()}\n\n{desc_part}".strip())
+        creature_info_parts.append(f"{creature_meta(monster)}\n\n{creature_desc(monster)}".strip())
     creature_info = "\n\n".join(creature_info_parts)
 
     prompt = (
         "Summarize the following D&D setting and monsters for a Dungeon Master's notes without mentioning game"
         " stats.\n\n"
+        "Setting\n"
+        "=======\n"
+        f"{encounter.biome_name}\n"
+        f"{encounter.biome_text}\n\n"
+        "Creatures\n"
+        "=========\n"
+        f"{creature_info}\n\n"
+        "Summary\n"
+        "=======\n"
+    )
+    return prompt
+
+
+def summary_prompt_2(encounter: models.RolledEncounter, monsters: list[gamedata.Monster]) -> str:
+    # https://platform.openai.com/playground/p/dRKGQXUoSPveva0MP5fcik3h
+    creature_info_parts = []
+    for monster in monsters:
+        desc = creature_desc(monster)
+        if not desc:
+            n = random.randint(2, 4)
+            chosen_sources = random.sample(("folklore", "common sense", "mythology", "culture"), n)
+            random_sources = utils.natural_join(chosen_sources, "and")
+            desc = (
+                "This creature has no official lore. Calypso, please provide the DM with information about the"
+                f" {monster.name} using information from {random_sources}."
+            )
+        creature_info_parts.append(f"{creature_meta(monster)}\n\n{desc}".strip())
+    creature_info = "\n\n".join(creature_info_parts)
+
+    prompt = (
+        "Your name is Calypso, and your job is to summarize the following D&D setting and monsters for a Dungeon"
+        " Master's notes without mentioning game stats. You may also use information from common sense, mythology, and"
+        " culture.\n\n"
         "Setting\n"
         "=======\n"
         f"{encounter.biome_name}\n"

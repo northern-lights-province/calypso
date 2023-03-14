@@ -119,6 +119,7 @@ class EncounterAISummary(Base):
     generation = Column(String, nullable=False)
     hyperparams = Column(String, nullable=False)
     feedback = Column(Integer, nullable=True)
+    prompt_version = Column(Integer, nullable=False)
 
     encounter = relationship("RolledEncounter")
 

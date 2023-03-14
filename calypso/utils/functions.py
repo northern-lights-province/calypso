@@ -8,6 +8,7 @@ __all__ = (
     "smart_trim",
     "multiline_modal",
     "camel_to_title",
+    "natural_join",
 )
 
 
@@ -93,3 +94,10 @@ async def multiline_modal(
 
 def camel_to_title(string):
     return re.sub(r"((?<=[a-z])[A-Z]|(?<!\A)[A-Z](?=[a-z]))", r" \1", string).title()
+
+
+def natural_join(things, between: str):
+    if len(things) < 3:
+        return f" {between} ".join(things)
+    first_part = ", ".join(things[:-1])
+    return f"{first_part}, {between} {things[-1]}"
