@@ -10,11 +10,10 @@ from . import queries
 
 SUMMARY_HYPERPARAMS = dict(
     model="text-davinci-003",
-    temperature=0.9,
+    temperature=0.8,
     max_tokens=256,
     top_p=0.95,
-    frequency_penalty=1,
-    presence_penalty=1,
+    frequency_penalty=0.5,
 )
 
 
@@ -309,16 +308,21 @@ def summary_prompt_2(encounter: models.RolledEncounter, monsters: list[gamedata.
             chosen_sources = random.sample(("folklore", "common sense", "mythology", "culture"), n)
             random_sources = utils.natural_join(chosen_sources, "and")
             desc = (
-                "This creature has no official lore. Calypso, please provide the DM with information about the"
-                f" {monster.name} using information from {random_sources}."
+                f"Calypso, please provide the DM with information about the {monster.name} using information from"
+                f" {random_sources}."
             )
         creature_info_parts.append(f"{creature_meta(monster)}\n\n{desc}".strip())
     creature_info = "\n\n".join(creature_info_parts)
 
     prompt = (
-        "Your name is Calypso, and your job is to summarize the following D&D setting and monsters for a Dungeon"
-        " Master's notes without mentioning game stats. You may also use information from common sense, mythology, and"
-        " culture.\n\n"
+        "Your name is Calypso, and your job is to help the Dungeon Master with an encounter.\n"
+        "Your task is to help the DM understand the setting and creatures as a group, focusing mainly on appearance and"
+        " how they act.\n"
+        "Especially focus on what makes each creature stand out.\n"
+        "Avoid mentioning game stats.\n"
+        "You may use information from common sense, mythology, and culture.\n"
+        "If there are multiple creatures, conclude by mentioning how they interact.\n\n"
+        f"Encounter: {encounter.rendered_text_nolinks}\n\n"
         "Setting\n"
         "=======\n"
         f"{encounter.biome_name}\n"
@@ -326,7 +330,7 @@ def summary_prompt_2(encounter: models.RolledEncounter, monsters: list[gamedata.
         "Creatures\n"
         "=========\n"
         f"{creature_info}\n\n"
-        "Summary\n"
-        "=======\n"
+        "Calypso's Help\n"
+        "==============\n"
     )
     return prompt

@@ -1,4 +1,5 @@
 import datetime
+import re
 
 from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
@@ -108,6 +109,10 @@ class RolledEncounter(Base):
     monster_ids = Column(String, nullable=True)  # comma-separated list of ids (ints)
     biome_name = Column(String, nullable=True)
     biome_text = Column(String, nullable=True)  # None if not in in-character channel (should be ignored in study)
+
+    @property
+    def rendered_text_nolinks(self):
+        return re.sub(r"\[(.+?)]\(http.+?\)", r"\1", self.rendered_text)
 
 
 class EncounterAISummary(Base):
