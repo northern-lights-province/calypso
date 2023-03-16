@@ -148,8 +148,7 @@ class EncounterHelperController(disnake.ui.View):
         await interaction.send(
             (
                 "Glad I could help! If you have a moment and would like to help me learn, you can give more detailed"
-                " feedback by clicking the button.\nIn the feedback form, you'll be able to tell me why you thought"
-                " this was helpful and optionally make any edits you think would make it even better."
+                " feedback by clicking the button."
             ),
             ephemeral=True,
             view=FeedbackView(summary),
@@ -166,8 +165,7 @@ class EncounterHelperController(disnake.ui.View):
         await interaction.send(
             (
                 "Sorry about that! If you have a moment and would like to help me learn, you can give more detailed"
-                " feedback by clicking the button.\nIn the feedback form, you'll be able to tell me why you thought"
-                " this wasn't helpful and optionally make your own edits to help me improve."
+                " feedback by clicking the button."
             ),
             ephemeral=True,
             view=FeedbackView(summary),
@@ -190,25 +188,30 @@ class FeedbackView(disnake.ui.View):
             custom_id=str(inter.id),
             components=[
                 disnake.ui.TextInput(
-                    label="Detailed Feedback",
-                    custom_id="feedback",
+                    label="Generation (for reference, don't edit)",
+                    custom_id="__generation",
                     style=disnake.TextInputStyle.paragraph,
-                    placeholder="Why do you think this generation was helpful/not helpful? Be specific.",
+                    placeholder="The generation is here for your reference. Anything you type here will be ignored.",
+                    value=self.summary.generation,
                     required=False,
                 ),
                 disnake.ui.TextInput(
-                    label="Instructions",
-                    custom_id="__instructions_1",
-                    style=disnake.TextInputStyle.paragraph,
-                    value="Below, you can help me learn by editing my response to make it better, if you'd like.",
-                    required=False,
-                ),
-                disnake.ui.TextInput(
-                    label="Your Edit",
+                    label="How to Improve (1-2 sentences)",
                     custom_id="edit",
                     style=disnake.TextInputStyle.paragraph,
-                    placeholder="If you'd like, you can edit my response to make it better.",
-                    value=self.summary.generation,
+                    placeholder="Write instructions for a bot describing how it could improve this summary.",
+                    value=(
+                        "Write instructions for a bot describing how it could improve this summary."
+                        " [Example: This summary should be no longer than 3 sentences long. Leave out the backstory"
+                        " about the elf mage]"
+                    ),
+                    required=False,
+                ),
+                disnake.ui.TextInput(
+                    label="Other Comments (Optional)",
+                    custom_id="feedback",
+                    style=disnake.TextInputStyle.paragraph,
+                    placeholder="Anything else you'd like to add?",
                     required=False,
                 ),
             ],
@@ -227,7 +230,7 @@ class FeedbackView(disnake.ui.View):
         feedback = modal_inter.text_values["feedback"]
         edit = modal_inter.text_values["edit"]
         async with db.async_session() as session:
-            feedback_obj = models.EncounterAISummaryFeedback(summary_id=self.summary.id, feedback=feedback, edit=edit)
+            feedback_obj = models.EncounterAISummaryFeedback(summary_id=self.summary.id, feedback=feedback)
             session.add(feedback_obj)
             await session.commit()
 

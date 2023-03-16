@@ -30,7 +30,7 @@ class Matcha:  # 🍵
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     matcher = Matcha()
     matcher.load_data()
     matcher.match()
