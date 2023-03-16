@@ -33,8 +33,11 @@ class Encounters(commands.Cog):
     ):
         # get biome from channel link
         if biome is None:
+            channel_id = inter.channel_id
+            if isinstance(inter.channel, disnake.Thread):
+                channel_id = inter.channel.parent_id
             async with db.async_session() as session:
-                echannel = await queries.get_encounter_channel(session, inter.channel_id)
+                echannel = await queries.get_encounter_channel(session, channel_id)
                 if echannel is None:
                     return await inter.send(
                         f"This channel does not have a linked encounter table. Please roll in the in-character channel,"
