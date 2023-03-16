@@ -230,7 +230,7 @@ class FeedbackView(disnake.ui.View):
         feedback = modal_inter.text_values["feedback"]
         edit = modal_inter.text_values["edit"]
         async with db.async_session() as session:
-            feedback_obj = models.EncounterAISummaryFeedback(summary_id=self.summary.id, feedback=feedback)
+            feedback_obj = models.EncounterAISummaryFeedback(summary_id=self.summary.id, feedback=feedback, edit=edit)
             session.add(feedback_obj)
             await session.commit()
 
