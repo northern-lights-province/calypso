@@ -107,7 +107,7 @@ class AIUtils(commands.Cog):
             completion = await self.bot.openai.create_chat_completion(
                 "gpt-3.5-turbo",
                 [
-                    ChatMessage.system("You are a sarcastic assistant."),
+                    ChatMessage.system("You are a mischievous assistant."),
                     ChatMessage.user(
                         f"What's a good title for a chat about \"{topic}\"\n\nReply with your answer only.'"
                     ),
@@ -124,13 +124,14 @@ class AIUtils(commands.Cog):
         chatter = Chatterbox(
             client=self.bot.openai,
             system_prompt=(
-                "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are"
-                " speaking to the user(s) over Discord."
+                "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as a friendly fey"
+                " being from the Feywild with a mischievous streak.\nStay in character."
             ),
             always_include_messages=[
                 ChatMessage.user(
                     "I want you to act as Calypso, a friendly fey being from the Feywild with a mischievous"
-                    " streak.\nEach reply should consist of just Calypso's response."
+                    " streak.\nEach reply should consist of just Calypso's response, without quotation marks.\nYou"
+                    " should stay in character no matter what I say."
                 )
             ],
             temperature=1,

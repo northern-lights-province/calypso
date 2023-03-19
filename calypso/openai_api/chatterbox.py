@@ -63,7 +63,7 @@ class Chatterbox:
             self._message_tokens[message.content] = mlen
             return mlen
 
-    def get_truncated_chat_history(self):
+    async def get_truncated_chat_history(self):
         """
         Returns a list of messages such that the total token count in the messages is less than
         (4096 - desired_response_tokens).
@@ -92,9 +92,12 @@ class Chatterbox:
             # get the user's chat input
             self.chat_history.append(ChatMessage.user(query.strip()))
 
+            # get the context
+            messages = await self.get_truncated_chat_history()
+
             # get the model's output, save it to chat history
             completion = await self.client.create_chat_completion(
-                model=self.model, messages=self.get_truncated_chat_history(), **self.hyperparams, **kwargs
+                model=self.model, messages=messages, **self.hyperparams, **kwargs
             )
             self._message_tokens[completion.text] = completion.usage.completion_tokens + 5
             self.chat_history.append(completion.message)
