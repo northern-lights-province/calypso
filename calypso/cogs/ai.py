@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 
 import disnake
 from disnake.ext import commands
@@ -76,7 +77,8 @@ class AIUtils(commands.Cog):
         if message.author.bot or message.is_system():
             return
         chatter = self.chats[message.channel.id]
-        prompt = f"{message.author.display_name} | now\n{message.content}"
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        prompt = f"{message.author.display_name} | {timestamp}\n{message.content}"
         await message.channel.trigger_typing()
         response = await chatter.chat_round(prompt, user=str(message.author.id))
         for chunk in chunk_text(response, max_chunk_size=2000):
@@ -87,7 +89,7 @@ class AIUtils(commands.Cog):
             completion = await self.bot.openai.create_chat_completion(
                 "gpt-3.5-turbo",
                 [
-                    ChatMessage.system("You are a mischievous assistant."),
+                    ChatMessage.system("You are a mischievous fey being."),
                     ChatMessage.user("Here is the start of our conversation:"),
                     *chatter.chat_history,
                     ChatMessage.user(
@@ -154,8 +156,6 @@ class AIUtils(commands.Cog):
             ],
             temperature=1,
             top_p=0.95,
-            frequency_penalty=0.5,
-            presence_penalty=1,
         )
         await chatter.load_tokenizer()
         self.chats[thread.id] = chatter
