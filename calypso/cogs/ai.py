@@ -79,7 +79,25 @@ class AIUtils(commands.Cog):
         prompt = f"{message.author.display_name} | now\n{message.content}"
         await message.channel.trigger_typing()
         response = await chatter.chat_round(prompt, user=str(message.author.id))
-        await message.channel.send(response)
+        for chunk in chunk_text(response, max_chunk_size=2000):
+            await message.channel.send(chunk)
+
+        # if this is the first message in the conversation, rename the thread
+        if len(chatter.chat_history) <= 2 and isinstance(message.channel, disnake.Thread):
+            completion = await self.bot.openai.create_chat_completion(
+                "gpt-3.5-turbo",
+                [
+                    ChatMessage.system("You are a mischievous assistant."),
+                    ChatMessage.user("Here is the start of our conversation:"),
+                    *chatter.chat_history,
+                    ChatMessage.user(
+                        "What's a good title for a forum post about this chat?\n\nReply with your answer only."
+                    ),
+                ],
+                user=str(message.author.id),
+            )
+            thread_title = completion.text.strip(' "')
+            await message.channel.edit(name=thread_title)
 
     @commands.Cog.listener()
     async def on_thread_update(self, _, after: disnake.Thread):
@@ -125,7 +143,7 @@ class AIUtils(commands.Cog):
             client=self.bot.openai,
             system_prompt=(
                 "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as a friendly fey"
-                " being from the Feywild with a mischievous streak.\nStay in character."
+                " being from the Feywild with a mischievous streak. Always reply as this character."
             ),
             always_include_messages=[
                 ChatMessage.user(
@@ -147,7 +165,8 @@ class AIUtils(commands.Cog):
         if not topic:
             return
         completion = await chatter.chat_round(f'I would like to talk about: "{topic}"', user=str(inter.author.id))
-        await thread.send(completion)
+        for chunk in chunk_text(completion, max_chunk_size=2000):
+            await thread.send(chunk)
 
 
 def setup(bot):
