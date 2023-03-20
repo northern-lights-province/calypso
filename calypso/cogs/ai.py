@@ -89,11 +89,11 @@ class AIUtils(commands.Cog):
             completion = await self.bot.openai.create_chat_completion(
                 "gpt-3.5-turbo",
                 [
-                    ChatMessage.system("You are a mischievous fey being."),
-                    ChatMessage.user("Here is the start of our conversation:"),
+                    ChatMessage.user("Here is the start of a conversation:"),
                     *chatter.chat_history,
                     ChatMessage.user(
-                        "What's a good title for a forum post about this chat?\n\nReply with your answer only."
+                        "Come up with a punchy title for this conversation.\n\nReply with your answer only and be"
+                        " specific."
                     ),
                 ],
                 user=str(message.author.id),
