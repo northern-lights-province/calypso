@@ -76,13 +76,13 @@ class AIUtils(commands.Cog):
             return
         if message.author.bot or message.is_system():
             return
+
+        # do a chat round w/ the chatterbox
         chatter = self.chats[message.channel.id]
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        prompt = f"{message.author.display_name} | {timestamp}\n{message.content}"
+        prompt = _get_chat_prompt(message)
         await message.channel.trigger_typing()
         response = await chatter.chat_round(prompt, user=str(message.author.id))
-        for chunk in chunk_text(response, max_chunk_size=2000):
-            await message.channel.send(chunk)
+        await _send_chunked(message.channel, response)
 
         # if this is the first message in the conversation, rename the thread
         if len(chatter.chat_history) <= 2 and isinstance(message.channel, disnake.Thread):
@@ -165,8 +165,19 @@ class AIUtils(commands.Cog):
         if not topic:
             return
         completion = await chatter.chat_round(f'I would like to talk about: "{topic}"', user=str(inter.author.id))
-        for chunk in chunk_text(completion, max_chunk_size=2000):
-            await thread.send(chunk)
+        await _send_chunked(thread, completion)
+
+
+# ==== rendering utils ====
+async def _send_chunked(dest, msg):
+    for chunk in chunk_text(msg, max_chunk_size=2000):
+        await dest.send(chunk, allowed_mentions=disnake.AllowedMentions.none())
+
+
+def _get_chat_prompt(message: disnake.Message) -> str:
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    prompt = f"{message.author.display_name} | {timestamp}\n{message.clean_content}"
+    return prompt
 
 
 def setup(bot):
