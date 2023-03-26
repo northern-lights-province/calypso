@@ -38,7 +38,6 @@ class EncounterHelperController(disnake.ui.View):
         self.encounter = encounter
         self.monsters = monsters
         self.embed = embed
-        self.summary_field_idx = None
         self.summary_id = None
         # buttons
         self._b_generate_summary = ButtonWithCallback(
@@ -83,13 +82,7 @@ class EncounterHelperController(disnake.ui.View):
     # ---- generation ----
     async def generate_summary(self, button: disnake.ui.Button, interaction: disnake.Interaction):
         # this will take a while, edit in a loading field and disable the button
-        if self.summary_field_idx is None:
-            self.embed.add_field(name="Encounter Summary", value=constants.TYPING_EMOJI, inline=False)
-            self.summary_field_idx = len(self.embed.fields) - 1
-        else:
-            self.embed.set_field_at(
-                self.summary_field_idx, name="Encounter Summary", value=constants.TYPING_EMOJI, inline=False
-            )
+        self.embed.add_field(name="Encounter Summary", value=constants.TYPING_EMOJI, inline=False)
         button.disabled = True
         await self.refresh_content(interaction, embed=self.embed)
 
@@ -119,8 +112,12 @@ class EncounterHelperController(disnake.ui.View):
             await session.commit()
             self.summary_id = summary_obj.id
 
-        # add it to embed
-        self.embed.set_field_at(self.summary_field_idx, name="Encounter Summary", value=summary, inline=False)
+        # replace embed fields with the summary
+        self.embed.clear_fields()
+        field_name = "Encounter Summary"
+        for chunk in utils.chunk_text(summary):
+            self.embed.add_field(name=field_name, value=chunk, inline=False)
+            field_name = "** **"
 
         # button wrangling
         self.remove_item(button)
@@ -170,8 +167,6 @@ class EncounterHelperController(disnake.ui.View):
             ephemeral=True,
             view=FeedbackView(summary),
         )
-
-    # ==== inspiration ====
 
 
 # ==== feedback ====
