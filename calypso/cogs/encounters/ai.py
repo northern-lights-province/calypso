@@ -94,7 +94,7 @@ class EncounterHelperController(disnake.ui.View):
         await self.refresh_content(interaction, embed=self.embed)
 
         # generate the summary
-        prompt_version = 1 if random.random() < 0.1 else 2  # 10% chance for prompt v1
+        prompt_version = 2
         if prompt_version == 1:
             prompt = summary_prompt_1(self.encounter, self.monsters)
         else:
