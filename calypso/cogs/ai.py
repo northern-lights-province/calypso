@@ -156,6 +156,7 @@ class AIUtils(commands.Cog):
             ],
             temperature=1,
             top_p=0.95,
+            frequency_penalty=0.3,
         )
         await chatter.load_tokenizer()
         self.chats[thread.id] = chatter
