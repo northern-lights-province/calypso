@@ -1,10 +1,11 @@
 import datetime
 import re
 
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Column, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from .db import Base
+from .openai_api.models import ChatRole
 
 
 # ==== weather ====
@@ -138,3 +139,27 @@ class EncounterAISummaryFeedback(Base):
     edit = Column(String, nullable=False)
 
     summary = relationship("EncounterAISummary")
+
+
+class EncounterAIBrainstormSession(Base):
+    __tablename__ = "enc_brainstorms"
+
+    id = Column(Integer, primary_key=True)
+    encounter_id = Column(Integer, ForeignKey("enc_encounter_log.id", ondelete="CASCADE"))
+    prompt = Column(String, nullable=False)
+    hyperparams = Column(String, nullable=False)
+    thread_id = Column(BigInteger, nullable=False)
+
+    encounter = relationship("RolledEncounter")
+
+
+class EncounterAIBrainstormMessage(Base):
+    __tablename__ = "enc_brainstorm_messages"
+
+    id = Column(Integer, primary_key=True)
+    brainstorm_id = Column(Integer, ForeignKey("enc_brainstorms.id", ondelete="CASCADE"))
+    role = Column(Enum(ChatRole), nullable=False)
+    content = Column(String, nullable=False)
+    timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+
+    brainstorm = relationship("EncounterAIBrainstormSession")

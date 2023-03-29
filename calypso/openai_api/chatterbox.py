@@ -19,7 +19,8 @@ class Chatterbox:
         always_include_messages: list[ChatMessage] = None,
         model="gpt-3.5-turbo",
         desired_response_tokens: int = 450,  # roughly the size of a discord message
-        max_context_size: int = 4096,  # depends on model
+        max_context_size: int = 4096,  # depends on model,
+        chat_history: list[ChatMessage] = None,
         **hyperparams
     ):
         hyperparams["max_tokens"] = desired_response_tokens
@@ -30,7 +31,7 @@ class Chatterbox:
         self.desired_response_tokens = desired_response_tokens
         self.max_context_size = max_context_size
         self.always_include_messages = [ChatMessage.system(self.system_prompt)] + (always_include_messages or [])
-        self.chat_history: list[ChatMessage] = []
+        self.chat_history: list[ChatMessage] = chat_history or []
         self.hyperparams = hyperparams
 
         # async to prevent generating multiple responses missing context

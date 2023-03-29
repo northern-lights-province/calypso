@@ -11,7 +11,7 @@ from disnake.ext import commands
 
 from calypso import Calypso, constants, db, models
 from calypso.utils.functions import multiline_modal
-from . import matcha, queries
+from . import ai, matcha, queries
 from .ai import EncounterHelperController
 from .client import EncounterClient, EncounterRepository
 from .params import biome_param
@@ -23,6 +23,16 @@ class Encounters(commands.Cog):
         self.client = EncounterClient()
         self.bot.loop.create_task(self.client.refresh_encounters())
 
+    # ==== listeners ====
+    @commands.Cog.listener()
+    async def on_message(self, message: disnake.Message):
+        await ai.on_message(self.bot, message)
+
+    @commands.Cog.listener()
+    async def on_thread_update(self, _, after: disnake.Thread):
+        await ai.on_thread_update(self.bot, after)
+
+    # ==== commands ====
     @commands.slash_command(description="Rolls a random encounter.", guild_ids=[constants.GUILD_ID])
     async def enc(
         self,
@@ -98,9 +108,9 @@ class Encounters(commands.Cog):
             colour=disnake.Colour.random(),
         )
 
-        # set up AI helper if in ic channel and matched monsters (todo: maybe not necessary)
+        # set up AI helper if in ic channel and matched monsters
         ai_helper = None
-        if echannel and referenced_monsters:
+        if echannel:
             ai_helper = EncounterHelperController(
                 inter.author, encounter=rolled_encounter, monsters=[m for m, _ in referenced_monsters], embed=embed
             )

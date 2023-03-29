@@ -2,11 +2,17 @@ import asyncio
 import json
 import random
 from functools import partial
+from typing import TYPE_CHECKING
 
 import disnake.ui
 
 from calypso import constants, db, gamedata, models, utils
+from calypso.openai_api.chatterbox import Chatterbox
+from calypso.openai_api.models import ChatMessage, ChatRole
 from . import queries
+
+if TYPE_CHECKING:
+    from calypso import Calypso
 
 SUMMARY_HYPERPARAMS = dict(
     model="text-davinci-003",
@@ -15,8 +21,53 @@ SUMMARY_HYPERPARAMS = dict(
     top_p=0.95,
     frequency_penalty=0.5,
 )
+BRAINSTORM_HYPERPARAMS = dict(
+    model="gpt-3.5-turbo",
+    temperature=1,
+    max_tokens=450,
+    top_p=0.95,
+    frequency_penalty=0.3,
+)
 
 
+# ==== EVENT HANDLERS ====
+async def on_message(bot: "Calypso", message: disnake.Message):
+    if message.channel.id not in bot.enc_chatterboxes:
+        return
+    if message.author.bot or message.is_system():
+        return
+
+    # get the chatterbox
+    chatter = bot.enc_chatterboxes[message.channel.id]
+    prompt = utils.prompts.chat_prompt(message)
+
+    # record user msg in db
+    async with db.async_session() as session:
+        user_msg = models.EncounterAIBrainstormMessage(
+            brainstorm_id=chatter.chat_session_id, role=ChatRole.USER, content=prompt
+        )
+        session.add(user_msg)
+        await session.commit()
+
+        # do a chat round w/ the chatterbox
+        await message.channel.trigger_typing()
+        response = await chatter.chat_round(prompt, user=str(message.author.id))
+        await utils.send_chunked(message.channel, response)
+
+        # record model msg in db
+        model_msg = models.EncounterAIBrainstormMessage(
+            brainstorm_id=chatter.chat_session_id, role=ChatRole.ASSISTANT, content=response
+        )
+        session.add(model_msg)
+        await session.commit()
+
+
+async def on_thread_update(bot: "Calypso", after: disnake.Thread):
+    if after.archived and after.id in bot.enc_chatterboxes:
+        del bot.enc_chatterboxes[after.id]
+
+
+# ==== ENTRYPOINT VIEW ====
 class ButtonWithCallback(disnake.ui.Button):
     def __init__(self, callback, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -38,8 +89,13 @@ class EncounterHelperController(disnake.ui.View):
         self.encounter = encounter
         self.monsters = monsters
         self.embed = embed
+        # generated
+        self.is_generating_summary = False
         self.summary_id = None
+        self.summary = None
+        self.chatterbox = None
         # buttons
+        # summary
         self._b_generate_summary = ButtonWithCallback(
             self.generate_summary,
             label="Help me understand the monsters",
@@ -61,8 +117,18 @@ class EncounterHelperController(disnake.ui.View):
             style=disnake.ButtonStyle.danger,
             row=0,
         )
+        # brainstorm
+        self._b_brainstorm_thread = ButtonWithCallback(
+            self.begin_brainstorm,
+            label="Brainstorm with me",
+            emoji="\U0001f916",  # :robot:
+            style=disnake.ButtonStyle.primary,
+            row=1,
+        )
         # buttons in initial state
-        self.add_item(self._b_generate_summary)
+        if monsters:
+            self.add_item(self._b_generate_summary)
+        self.add_item(self._b_brainstorm_thread)
 
     # ==== d.py overrides and helpers ====
     async def interaction_check(self, interaction: disnake.Interaction) -> bool:
@@ -81,6 +147,7 @@ class EncounterHelperController(disnake.ui.View):
     # ==== summary ====
     # ---- generation ----
     async def generate_summary(self, button: disnake.ui.Button, interaction: disnake.Interaction):
+        self.is_generating_summary = True
         # this will take a while, edit in a loading field and disable the button
         self.embed.add_field(name="Encounter Summary", value=constants.TYPING_EMOJI, inline=False)
         button.disabled = True
@@ -98,6 +165,7 @@ class EncounterHelperController(disnake.ui.View):
             prompt=prompt, user=str(interaction.author.id), **SUMMARY_HYPERPARAMS
         )
         summary = completion.text.strip()
+        self.summary = summary
 
         # save it to db
         async with db.async_session() as session:
@@ -124,6 +192,7 @@ class EncounterHelperController(disnake.ui.View):
         self.add_item(self._b_summary_feedback_pos)
         self.add_item(self._b_summary_feedback_neg)
         await self.refresh_content(interaction, embed=self.embed)
+        self.is_generating_summary = False
 
         # log it to staff chat
         log_channel = interaction.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
@@ -166,6 +235,69 @@ class EncounterHelperController(disnake.ui.View):
             ),
             ephemeral=True,
             view=FeedbackView(summary),
+        )
+
+    # ==== brainstorming ====
+    async def begin_brainstorm(self, button: disnake.ui.Button, interaction: utils.typing.Interaction):
+        button.disabled = True
+        await self.refresh_content(interaction)
+
+        # create private brainstorming thread
+        thread_name = utils.smart_trim(f"Brainstorm: {self.encounter.rendered_text_nolinks}", max_len=100)
+        thread = await interaction.channel.create_thread(
+            name=thread_name,
+            type=disnake.ChannelType.private_thread,
+            auto_archive_duration=1440,
+        )
+        await thread.add_user(interaction.author)
+
+        # if the summary has been generated, add it to the chat history
+        chat_history = []
+        if self.summary:
+            chat_history = [ChatMessage.user(f"Here's what I have so far:\n{self.summary}")]
+
+        # load up a chatterbox
+        chatter = EncChatterbox(
+            client=interaction.bot.openai,
+            system_prompt=(
+                "You are a creative D&D player named Calypso. Answer as concisely as possible.\n"
+                "Avoid mentioning game stats. You may use information from common sense, mythology, and culture."
+            ),
+            always_include_messages=[
+                ChatMessage.user(
+                    f"I'm running this D&D encounter: {self.encounter.rendered_text_nolinks}\n\n"
+                    f"{setting_and_creatures(self.encounter, self.monsters)}\n\n"
+                    "Your job is to help brainstorm some ideas for the encounter."
+                )
+            ],
+            chat_history=chat_history,
+            **BRAINSTORM_HYPERPARAMS,
+        )
+        await chatter.load_tokenizer()
+        self.chatterbox = chatter
+
+        # register session in db
+        async with db.async_session() as session:
+            brainstorm = models.EncounterAIBrainstormSession(
+                encounter_id=self.encounter.id,
+                prompt=json.dumps([m.dict() for m in await chatter.get_truncated_chat_history()]),
+                hyperparams=json.dumps(BRAINSTORM_HYPERPARAMS),
+                thread_id=thread.id,
+            )
+            session.add(brainstorm)
+            await session.commit()
+            chatter.chat_session_id = brainstorm.id
+
+        # and register it
+        interaction.bot.enc_chatterboxes[thread.id] = chatter
+
+        # send enc to channel plus instructions
+        await thread.send(
+            (
+                "Here's a thread for us to brainstorm! Ask me questions about the monster, setting, or general"
+                " encounter ideas. Here's the encounter, for your reference:"
+            ),
+            embed=self.embed,
         )
 
 
@@ -233,6 +365,13 @@ class FeedbackView(disnake.ui.View):
         await modal_inter.send("Thanks! Your feedback was recorded.", ephemeral=True)
 
 
+# ==== enc chatterbox ====
+class EncChatterbox(Chatterbox):
+    def __init__(self, *args, chat_session_id=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.chat_session_id = chat_session_id
+
+
 # ==== prompts ====
 def creature_meta(monster: gamedata.Monster) -> str:
     ac = str(monster.ac) + (f" ({monster.armortype})" if monster.armortype else "")
@@ -273,6 +412,29 @@ def creature_desc(monster: gamedata.Monster) -> str:
     return "\n\n".join(desc_parts).strip()
 
 
+def setting_and_creatures(encounter: models.RolledEncounter, monsters: list[gamedata.Monster]) -> str:
+    """Returns the setting and creatures used in summarization v2."""
+    creature_info_parts = []
+    for monster in monsters:
+        desc = creature_desc(monster)
+        if not desc:
+            n = random.randint(2, 4)
+            chosen_sources = random.sample(("folklore", "common sense", "mythology", "culture"), n)
+            random_sources = utils.natural_join(chosen_sources, "and")
+            desc = (
+                f"Calypso, please provide the DM with information about the {monster.name} using information from"
+                f" {random_sources}."
+            )
+        creature_info_parts.append(f"{creature_meta(monster)}\n\n{desc}".strip())
+    creature_info = "\n\n".join(creature_info_parts)
+
+    setting_part = f"Setting\n=======\n{encounter.biome_name}\n{encounter.biome_text}"
+    if monsters:
+        creature_part = f"Creatures\n=========\n{creature_info}"
+        return f"{setting_part}\n\n{creature_part}"
+    return setting_part
+
+
 def summary_prompt_1(encounter: models.RolledEncounter, monsters: list[gamedata.Monster]) -> str:
     # https://platform.openai.com/playground/p/TgTWenUG110KIdvqvocnzTYW
     creature_info_parts = []
@@ -298,20 +460,6 @@ def summary_prompt_1(encounter: models.RolledEncounter, monsters: list[gamedata.
 
 def summary_prompt_2(encounter: models.RolledEncounter, monsters: list[gamedata.Monster]) -> str:
     # https://platform.openai.com/playground/p/dRKGQXUoSPveva0MP5fcik3h
-    creature_info_parts = []
-    for monster in monsters:
-        desc = creature_desc(monster)
-        if not desc:
-            n = random.randint(2, 4)
-            chosen_sources = random.sample(("folklore", "common sense", "mythology", "culture"), n)
-            random_sources = utils.natural_join(chosen_sources, "and")
-            desc = (
-                f"Calypso, please provide the DM with information about the {monster.name} using information from"
-                f" {random_sources}."
-            )
-        creature_info_parts.append(f"{creature_meta(monster)}\n\n{desc}".strip())
-    creature_info = "\n\n".join(creature_info_parts)
-
     prompt = (
         "Your name is Calypso, and your job is to help the Dungeon Master with an encounter.\n"
         "Your task is to help the DM understand the setting and creatures as a group, focusing mainly on appearance and"
@@ -321,13 +469,7 @@ def summary_prompt_2(encounter: models.RolledEncounter, monsters: list[gamedata.
         "You may use information from common sense, mythology, and culture.\n"
         "If there are multiple creatures, conclude by mentioning how they interact.\n\n"
         f"Encounter: {encounter.rendered_text_nolinks}\n\n"
-        "Setting\n"
-        "=======\n"
-        f"{encounter.biome_name}\n"
-        f"{encounter.biome_text}\n\n"
-        "Creatures\n"
-        "=========\n"
-        f"{creature_info}\n\n"
+        f"{setting_and_creatures(encounter, monsters)}\n\n"
         "Calypso's Help\n"
         "==============\n"
     )

@@ -1,5 +1,4 @@
 import asyncio
-import datetime
 
 import disnake
 from disnake.ext import commands
@@ -7,7 +6,8 @@ from disnake.ext import commands
 from calypso import Calypso, constants
 from calypso.openai_api.chatterbox import Chatterbox
 from calypso.openai_api.models import ChatMessage
-from calypso.utils.functions import chunk_text, multiline_modal
+from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
+from calypso.utils.prompts import chat_prompt
 
 
 class AIUtils(commands.Cog):
@@ -79,10 +79,10 @@ class AIUtils(commands.Cog):
 
         # do a chat round w/ the chatterbox
         chatter = self.chats[message.channel.id]
-        prompt = _get_chat_prompt(message)
+        prompt = chat_prompt(message)
         await message.channel.trigger_typing()
         response = await chatter.chat_round(prompt, user=str(message.author.id))
-        await _send_chunked(message.channel, response)
+        await send_chunked(message.channel, response, allowed_mentions=disnake.AllowedMentions.none())
 
         # if this is the first message in the conversation, rename the thread
         if len(chatter.chat_history) <= 2 and isinstance(message.channel, disnake.Thread):
@@ -166,19 +166,7 @@ class AIUtils(commands.Cog):
         if not topic:
             return
         completion = await chatter.chat_round(f'I would like to talk about: "{topic}"', user=str(inter.author.id))
-        await _send_chunked(thread, completion)
-
-
-# ==== rendering utils ====
-async def _send_chunked(dest, msg):
-    for chunk in chunk_text(msg, max_chunk_size=2000):
-        await dest.send(chunk, allowed_mentions=disnake.AllowedMentions.none())
-
-
-def _get_chat_prompt(message: disnake.Message) -> str:
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    prompt = f"{message.author.display_name} | {timestamp}\n{message.clean_content}"
-    return prompt
+        await send_chunked(thread, completion, allowed_mentions=disnake.AllowedMentions.none())
 
 
 def setup(bot):

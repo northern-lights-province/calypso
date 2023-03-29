@@ -9,6 +9,7 @@ __all__ = (
     "multiline_modal",
     "camel_to_title",
     "natural_join",
+    "send_chunked",
 )
 
 
@@ -101,3 +102,8 @@ def natural_join(things, between: str):
         return f" {between} ".join(things)
     first_part = ", ".join(things[:-1])
     return f"{first_part}, {between} {things[-1]}"
+
+
+async def send_chunked(dest, msg, **kwargs):
+    for chunk in chunk_text(msg, max_chunk_size=2000):
+        await dest.send(chunk, **kwargs)
