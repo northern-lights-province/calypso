@@ -300,6 +300,13 @@ class EncounterHelperController(disnake.ui.View):
             embed=self.embed,
         )
 
+        # log it to staff chat
+        log_channel = interaction.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
+        await log_channel.send(
+            f"<@{self.encounter.author_id}> opened a brainstorming thread with Calypso: {thread.mention}",
+            allowed_mentions=disnake.AllowedMentions.none(),
+        )
+
 
 # ==== feedback ====
 class FeedbackView(disnake.ui.View):
