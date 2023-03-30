@@ -244,7 +244,11 @@ class EncounterHelperController(disnake.ui.View):
 
         # create private brainstorming thread
         thread_name = utils.smart_trim(f"Brainstorm: {self.encounter.rendered_text_nolinks}", max_len=100)
-        thread = await interaction.channel.create_thread(
+        if isinstance(interaction.channel, disnake.Thread):
+            channel = interaction.channel.parent
+        else:
+            channel = interaction.channel
+        thread = await channel.create_thread(
             name=thread_name,
             type=disnake.ChannelType.private_thread,
             auto_archive_duration=1440,
