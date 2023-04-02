@@ -69,11 +69,11 @@ def weather_embed(biome: models.WeatherBiome, weather: CurrentWeather) -> disnak
     if biome.image_url:
         embed.set_thumbnail(url=biome.image_url)
 
-    degrees_f = int(k_to_f(weather.main.temp))
+    temp = weather_temp(biome, weather)
+    degrees_f = int(k_to_f(temp))
 
     embed.description = (
-        f"It's currently {degrees_f}\u00b0F ({int(k_to_c(weather.main.temp))}\u00b0C) "
-        f"in {biome.name}. {weather_desc(weather)}"
+        f"It's currently {degrees_f}\u00b0F ({int(k_to_c(temp))}\u00b0C) in {biome.name}. {weather_desc(weather)}"
     )
 
     is_heavy_precipitation = False
@@ -96,6 +96,11 @@ def weather_embed(biome: models.WeatherBiome, weather: CurrentWeather) -> disnak
         embed.add_field(name="Heavy Precipitation", value=extreme_weather.HEAVY_PRECIPITATION, inline=False)
 
     return embed
+
+
+def weather_temp(biome: models.WeatherBiome, weather: CurrentWeather) -> float:
+    """Given the weather, return the temperature in Kelvin, taking into account the biome mod."""
+    return weather.main.temp + (biome.temp_mod or 0) / 1.8
 
 
 def weather_desc(weather: CurrentWeather) -> str:

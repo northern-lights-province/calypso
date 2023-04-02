@@ -17,6 +17,7 @@ class WeatherBiome(Base):
     name = Column(String, nullable=False)
     city_id = Column(Integer, nullable=False)
     image_url = Column(String, nullable=True)
+    temp_mod = Column(Integer, nullable=True)
 
     channels = relationship("WeatherChannelMap", back_populates="biome")
 

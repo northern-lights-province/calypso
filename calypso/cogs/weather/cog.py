@@ -66,8 +66,9 @@ class Weather(commands.Cog):
 
         for biome in biomes:
             weather = await self.client.get_current_weather_by_city_id(biome.city_id)
+            temp = utils.weather_temp(biome, weather)
             biome_desc = (
-                f"{int(utils.k_to_f(weather.main.temp))}\u00b0F ({int(utils.k_to_c(weather.main.temp))}\u00b0C) - "
+                f"{int(utils.k_to_f(temp))}\u00b0F ({int(utils.k_to_c(temp))}\u00b0C) - "
                 f"{', '.join(weather_detail.main for weather_detail in weather.weather)}"
             )
             embed.add_field(name=biome.name, value=biome_desc)
@@ -76,9 +77,9 @@ class Weather(commands.Cog):
 
     # ==== admin ====
     @commands.slash_command(name="weatheradmin", description="Create/remove biomes and channel links")
+    @commands.default_member_permissions(manage_guild=True)
     async def weatheradmin(self, inter: disnake.ApplicationCommandInteraction):
-        if not any(r.name == "Dragonspeaker" for r in inter.author.roles):
-            raise commands.CheckFailure("Only Dragonspeakers can run this command")
+        pass
 
     # ---- channel ----
     @weatheradmin.sub_command_group(name="channel")
@@ -146,8 +147,11 @@ class Weather(commands.Cog):
         name: str = commands.Param(desc="The name of the biome"),
         city: Any = city_param(desc="The IRL city the biome uses for weather"),
         image_url: str = commands.Param(None, desc="The image to show in /weather"),
+        temp_mod: int = commands.Param(None, desc="A modifier (in Fahrenheit) to add to the real-world temp"),
     ):
-        new_biome = models.WeatherBiome(name=name, guild_id=inter.guild_id, city_id=city.id, image_url=image_url)
+        new_biome = models.WeatherBiome(
+            name=name, guild_id=inter.guild_id, city_id=city.id, image_url=image_url, temp_mod=temp_mod
+        )
         async with db.async_session() as session:
             session.add(new_biome)
             await session.commit()
@@ -164,6 +168,7 @@ class Weather(commands.Cog):
         name: str = commands.Param(None, desc="The name of the biome"),
         city: Any = city_param(None, desc="The IRL city the biome uses for weather"),
         image_url: str = commands.Param(None, desc="The image to show in /weather"),
+        temp_mod: int = commands.Param(None, desc="A modifier (in Fahrenheit) to add to the real-world temp"),
     ):
         async with db.async_session() as session:
             session.add(biome)
@@ -175,6 +180,8 @@ class Weather(commands.Cog):
                 biome.city_id = city.id
             if image_url is not None:
                 biome.image_url = image_url
+            if temp_mod is not None:
+                biome.temp_mod = temp_mod
 
             await session.commit()
         await inter.send(f"Updated the biome `{biome.name}` (ID {biome.id}).")
