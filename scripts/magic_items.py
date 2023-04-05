@@ -2,7 +2,7 @@ import csv
 import json
 import re
 
-RARITY_RE = re.compile("\Wuncommon\W")
+RARITY_RE = re.compile("(?<!very)\Wrare\W")
 
 
 def rarity_filter():

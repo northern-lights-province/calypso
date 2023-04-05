@@ -264,8 +264,9 @@ class EncounterHelperController(disnake.ui.View):
         chatter = EncChatterbox(
             client=interaction.bot.openai,
             system_prompt=(
-                "You are a creative D&D player named Calypso. Answer as concisely as possible.\n"
-                "Avoid mentioning game stats. You may use information from common sense, mythology, and culture."
+                "You are a creative Dungeon Master's assistant for D&D 5e named Calypso. Answer as concisely as"
+                " possible.\nAvoid mentioning game stats. You may use information from common sense, mythology, and"
+                " culture."
             ),
             always_include_messages=[
                 ChatMessage.user(
