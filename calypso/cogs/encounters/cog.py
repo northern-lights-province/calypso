@@ -112,7 +112,11 @@ class Encounters(commands.Cog):
         ai_helper = None
         if echannel:
             ai_helper = EncounterHelperController(
-                inter.author, encounter=rolled_encounter, monsters=[m for m, _ in referenced_monsters], embed=embed
+                inter.author,
+                inter.channel,
+                encounter=rolled_encounter,
+                monsters=[m for m, _ in referenced_monsters],
+                embed=embed,
             )
 
         # and send message

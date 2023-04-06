@@ -1,5 +1,6 @@
 from .cog import Weather
 from .city import CityRepository
+from . import utils
 
 
 def setup(bot):

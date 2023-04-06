@@ -30,25 +30,14 @@ class Weather(commands.Cog):
         inter: disnake.ApplicationCommandInteraction,
         biome: Any = biome_param(None, desc="The ID of the biome to get the weather of"),
     ):
-        # specific biome
-        if biome is not None:
-            biome_weather = await self.client.get_current_weather_by_city_id(biome.city_id)
-            await inter.send(embed=utils.weather_embed(biome, biome_weather))
-            return
-
-        # channel biome
-        if isinstance(inter.channel, disnake.Thread):
-            channel_id = inter.channel.parent_id
-        else:
-            channel_id = inter.channel_id
-
-        async with db.async_session() as session:
-            channel_link = await utils.get_channel_map_by_id(session, channel_id, load_biome=True)
-        if channel_link is None:
-            await inter.send("This channel is not linked to a biome", ephemeral=True)
-            return
-        biome_weather = await self.client.get_current_weather_by_city_id(channel_link.biome.city_id)
-        await inter.send(embed=utils.weather_embed(channel_link.biome, biome_weather))
+        if biome is None:
+            async with db.async_session() as session:
+                biome = await utils.get_weather_biome_by_channel(session, inter.channel)
+            if biome is None:
+                await inter.send("This channel is not linked to a biome", ephemeral=True)
+                return
+        biome_weather = await self.client.get_current_weather_by_city_id(biome.city_id)
+        await inter.send(embed=utils.weather_embed(biome, biome_weather))
 
     @commands.slash_command(description="Shows the weather in all areas")
     async def summary(self, inter: disnake.ApplicationCommandInteraction):

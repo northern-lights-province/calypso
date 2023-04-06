@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import random
 from functools import partial
 from typing import TYPE_CHECKING
@@ -7,12 +8,14 @@ from typing import TYPE_CHECKING
 import disnake.ui
 
 from calypso import constants, db, gamedata, models, utils
+from calypso.cogs import weather
 from calypso.openai_api.chatterbox import Chatterbox
 from calypso.openai_api.models import ChatMessage, ChatRole
 from . import queries
 
 if TYPE_CHECKING:
     from calypso import Calypso
+    from calypso.cogs.weather.cog import Weather
 
 SUMMARY_HYPERPARAMS = dict(
     model="text-davinci-003",
@@ -28,6 +31,8 @@ BRAINSTORM_HYPERPARAMS = dict(
     top_p=0.95,
     frequency_penalty=0.3,
 )
+
+log = logging.getLogger(__name__)
 
 
 # ==== EVENT HANDLERS ====
@@ -78,6 +83,7 @@ class EncounterHelperController(disnake.ui.View):
     def __init__(
         self,
         owner: disnake.User,
+        channel: utils.typing.InteractionChannel,
         encounter: models.RolledEncounter,
         monsters: list[gamedata.Monster],
         embed: disnake.Embed,
@@ -86,6 +92,7 @@ class EncounterHelperController(disnake.ui.View):
     ):
         super().__init__(timeout=timeout)
         self.owner = owner
+        self.channel = channel
         self.encounter = encounter
         self.monsters = monsters
         self.embed = embed
@@ -260,19 +267,27 @@ class EncounterHelperController(disnake.ui.View):
         if self.summary:
             chat_history = [ChatMessage.user(f"Here's what I have so far:\n{self.summary}")]
 
+        # grab weather if available
+        try:
+            weather_desc = await weather_prompt(interaction)
+        except Exception:
+            weather_desc = ""
+            log.exception("Could not get weather:")
+
         # load up a chatterbox
         chatter = EncChatterbox(
             client=interaction.bot.openai,
             system_prompt=(
-                "You are a creative Dungeon Master's assistant for D&D 5e named Calypso. Answer as concisely as"
-                " possible.\nAvoid mentioning game stats. You may use information from common sense, mythology, and"
-                " culture."
+                "You are a creative D&D player and DM named Calypso.\n"
+                "Avoid mentioning game stats. You may use information from common sense, mythology, and culture."
             ),
             always_include_messages=[
                 ChatMessage.user(
                     f"I'm running this D&D encounter: {self.encounter.rendered_text_nolinks}\n\n"
                     f"{setting_and_creatures(self.encounter, self.monsters)}\n\n"
-                    "Your job is to help brainstorm some ideas for the encounter."
+                    f"{weather_desc}"
+                    "Your job is to help brainstorm some ideas for the encounter. Players have already seen the setting"
+                    " and weather, so you do not need to repeat it."
                 )
             ],
             chat_history=chat_history,
@@ -486,3 +501,18 @@ def summary_prompt_2(encounter: models.RolledEncounter, monsters: list[gamedata.
         "==============\n"
     )
     return prompt
+
+
+async def weather_prompt(interaction: disnake.Interaction) -> str:
+    # noinspection PyTypeChecker
+    weather_cog: "Weather" = interaction.bot.get_cog("Weather")
+    if weather_cog is None:
+        return ""
+    async with db.async_session() as session:
+        weather_biome = await weather.utils.get_weather_biome_by_channel(session, interaction.channel)
+    if weather_biome is None:
+        return ""
+    weather_data = await weather_cog.client.get_current_weather_by_city_id(weather_biome.city_id)
+    weather_out = weather.utils.weather_desc_full(weather_biome, weather_data)
+    weather_conditions_desc = "\n".join(f"{name}: {cond}" for name, cond in weather_out.fields)
+    return f"Weather\n=======\n{weather_out.desc}\n{weather_conditions_desc}\n\n"

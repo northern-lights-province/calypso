@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 import disnake
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -39,6 +40,19 @@ async def get_channel_map_by_id(session, channel_id: int, load_biome=False) -> O
     return result.scalar()
 
 
+async def get_weather_biome_by_channel(session, channel) -> Optional[models.WeatherBiome]:
+    """Gets the weather biome in this channel, or None if the channel is not linked."""
+    if isinstance(channel, disnake.Thread):
+        channel_id = channel.parent_id
+    else:
+        channel_id = channel.id
+
+    channel_link = await get_channel_map_by_id(session, channel_id, load_biome=True)
+    if channel_link is None:
+        return None
+    return channel_link.biome
+
+
 def k_to_f(deg_k: float):
     """Kelvin to Fahrenheit"""
     return deg_k * 1.8 - 459.67
@@ -56,46 +70,6 @@ def ms_to_mph(ms: float):
 
 def m_to_ft(meters: float):
     return meters * 3.281
-
-
-def weather_embed(biome: models.WeatherBiome, weather: CurrentWeather) -> disnake.Embed:
-    embed = disnake.Embed()
-    embed.title = f"Current Weather in {biome.name}"
-    embed.colour = disnake.Color.random()
-    embed.set_author(
-        icon_url=f"http://openweathermap.org/img/wn/{weather.weather[0].icon}@2x.png", name=weather.weather[0].main
-    )
-
-    if biome.image_url:
-        embed.set_thumbnail(url=biome.image_url)
-
-    temp = weather_temp(biome, weather)
-    degrees_f = int(k_to_f(temp))
-
-    embed.description = (
-        f"It's currently {degrees_f}\u00b0F ({int(k_to_c(temp))}\u00b0C) in {biome.name}. {weather_desc(weather)}"
-    )
-
-    is_heavy_precipitation = False
-    for weather_detail in weather.weather:
-        embed.add_field(
-            name=weather_detail.main,
-            value=WEATHER_DESC.get(weather_detail.id, weather_detail.description),
-            inline=False,
-        )
-        is_heavy_precipitation = is_heavy_precipitation or extreme_weather.is_heavy_precipitation(weather_detail.id)
-
-    # extreme weather
-    if degrees_f <= 0:
-        embed.add_field(name="Extreme Cold", value=extreme_weather.EXTREME_COLD, inline=False)
-    if degrees_f >= 100:
-        embed.add_field(name="Extreme Heat", value=extreme_weather.EXTREME_HEAT, inline=False)
-    if weather.wind.speed >= 10:
-        embed.add_field(name="Strong Wind", value=extreme_weather.STRONG_WIND, inline=False)
-    if is_heavy_precipitation:
-        embed.add_field(name="Heavy Precipitation", value=extreme_weather.HEAVY_PRECIPITATION, inline=False)
-
-    return embed
 
 
 def weather_temp(biome: models.WeatherBiome, weather: CurrentWeather) -> float:
@@ -122,7 +96,7 @@ def weather_desc(weather: CurrentWeather) -> str:
     elif weather.wind.speed < 32:
         wind_desc = "violent"
     else:
-        wind_desc = "a hurricane"
+        wind_desc = "hurricane-like"
 
     if 0 <= weather.wind.deg < 45:
         wind_direction = "north"
@@ -159,3 +133,51 @@ def weather_desc(weather: CurrentWeather) -> str:
         f"The wind is {wind_desc}, at {int(ms_to_mph(weather.wind.speed))} mph towards the {wind_direction}. "
         f"Visibility is {visibility_desc} ({visibility_detail}) with a humidity of {weather.main.humidity}%."
     )
+
+
+class WeatherDescFull(BaseModel):
+    desc: str
+    fields: list[tuple[str, str]]
+
+
+def weather_desc_full(biome: models.WeatherBiome, weather: CurrentWeather) -> WeatherDescFull:
+    temp = weather_temp(biome, weather)
+    degrees_f = int(k_to_f(temp))
+
+    desc = f"It's currently {degrees_f}\u00b0F ({int(k_to_c(temp))}\u00b0C) in {biome.name}. {weather_desc(weather)}"
+
+    is_heavy_precipitation = False
+    fields = []
+    for weather_detail in weather.weather:
+        fields.append((weather_detail.main, WEATHER_DESC.get(weather_detail.id, weather_detail.description)))
+        is_heavy_precipitation = is_heavy_precipitation or extreme_weather.is_heavy_precipitation(weather_detail.id)
+
+    # extreme weather
+    if degrees_f <= 0:
+        fields.append(("Extreme Cold", extreme_weather.EXTREME_COLD))
+    if degrees_f >= 100:
+        fields.append(("Extreme Heat", extreme_weather.EXTREME_HEAT))
+    if weather.wind.speed >= 10:
+        fields.append(("Strong Wind", extreme_weather.STRONG_WIND))
+    if is_heavy_precipitation:
+        fields.append(("Heavy Precipitation", extreme_weather.HEAVY_PRECIPITATION))
+    return WeatherDescFull(desc=desc, fields=fields)
+
+
+def weather_embed(biome: models.WeatherBiome, weather: CurrentWeather) -> disnake.Embed:
+    embed = disnake.Embed()
+    embed.title = f"Current Weather in {biome.name}"
+    embed.colour = disnake.Color.random()
+    embed.set_author(
+        icon_url=f"http://openweathermap.org/img/wn/{weather.weather[0].icon}@2x.png", name=weather.weather[0].main
+    )
+
+    if biome.image_url:
+        embed.set_thumbnail(url=biome.image_url)
+
+    desc = weather_desc_full(biome, weather)
+    embed.description = desc.desc
+    for name, value in desc.fields:
+        embed.add_field(name=name, value=value, inline=False)
+
+    return embed

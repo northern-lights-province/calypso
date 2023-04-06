@@ -1,7 +1,7 @@
 """
 Typing helpers.
 """
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 import disnake
 
@@ -11,3 +11,6 @@ if TYPE_CHECKING:
 
 class Interaction(disnake.Interaction):
     bot: "Calypso"
+
+
+InteractionChannel = Union[disnake.TextChannel, disnake.Thread, disnake.VoiceChannel, disnake.PartialMessageable]
