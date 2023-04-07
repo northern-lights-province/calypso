@@ -164,3 +164,29 @@ class EncounterAIBrainstormMessage(Base):
     timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
 
     brainstorm = relationship("EncounterAIBrainstormSession")
+
+
+# ==== ai ====
+class AIOpenEndedChat(Base):
+    __tablename__ = "ai_chats"
+
+    id = Column(Integer, primary_key=True)
+    channel_id = Column(BigInteger, nullable=False)
+    author_id = Column(BigInteger, nullable=False)
+    timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    prompt = Column(String, nullable=False)
+    hyperparams = Column(String, nullable=False)
+    thread_id = Column(BigInteger, nullable=False)
+    thread_title = Column(String, nullable=True)
+
+
+class AIChatMessage(Base):
+    __tablename__ = "ai_chat_messages"
+
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(Integer, ForeignKey("ai_chats.id", ondelete="CASCADE"))
+    role = Column(Enum(ChatRole), nullable=False)
+    content = Column(String, nullable=False)
+    timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+
+    chat = relationship("AIOpenEndedChat")

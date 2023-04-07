@@ -1,13 +1,22 @@
 import asyncio
+import json
 
 import disnake
 from disnake.ext import commands
 
-from calypso import Calypso, constants
+from calypso import Calypso, constants, db, models
 from calypso.openai_api.chatterbox import Chatterbox
-from calypso.openai_api.models import ChatMessage
+from calypso.openai_api.models import ChatMessage, ChatRole
 from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
 from calypso.utils.prompts import chat_prompt
+
+CHAT_HYPERPARAMS = dict(
+    model="gpt-3.5-turbo",
+    temperature=1,
+    max_tokens=450,
+    top_p=0.95,
+    frequency_penalty=0.3,
+)
 
 
 class AIUtils(commands.Cog):
@@ -15,7 +24,7 @@ class AIUtils(commands.Cog):
 
     def __init__(self, bot):
         self.bot: Calypso = bot
-        self.chats: dict[int, Chatterbox] = {}
+        self.chats: dict[int, AIChatterbox] = {}
 
     @commands.slash_command(name="ai", description="AI utilities", guild_ids=[constants.GUILD_ID])
     async def ai(self, inter: disnake.ApplicationCommandInteraction):
@@ -81,11 +90,29 @@ class AIUtils(commands.Cog):
         chatter = self.chats[message.channel.id]
         prompt = chat_prompt(message)
         await message.channel.trigger_typing()
-        response = await chatter.chat_round(prompt, user=str(message.author.id))
-        await send_chunked(message.channel, response, allowed_mentions=disnake.AllowedMentions.none())
 
-        # if this is the first message in the conversation, rename the thread
-        if len(chatter.chat_history) <= 2 and isinstance(message.channel, disnake.Thread):
+        # record user msg in db
+        async with db.async_session() as session:
+            user_msg = models.AIChatMessage(chat_id=chatter.chat_session_id, role=ChatRole.USER, content=prompt)
+            session.add(user_msg)
+            await session.commit()
+
+            # do a chat round w/ the chatterbox
+            await message.channel.trigger_typing()
+            response = await chatter.chat_round(prompt, user=str(message.author.id))
+            await send_chunked(message.channel, response, allowed_mentions=disnake.AllowedMentions.none())
+
+            # record model msg in db
+            model_msg = models.AIChatMessage(chat_id=chatter.chat_session_id, role=ChatRole.ASSISTANT, content=response)
+            session.add(model_msg)
+            await session.commit()
+
+        # do a thread rename after 2 rounds
+        if (
+            chatter.chat_title is None
+            and len(chatter.chat_history) >= 4
+            and isinstance(message.channel, disnake.Thread)
+        ):
             completion = await self.bot.openai.create_chat_completion(
                 "gpt-3.5-turbo",
                 [
@@ -99,6 +126,11 @@ class AIUtils(commands.Cog):
                 user=str(message.author.id),
             )
             thread_title = completion.text.strip(' "')
+            async with db.async_session() as session:
+                db_chat = await session.get(models.AIOpenEndedChat, chatter.chat_session_id)
+                chatter.chat_title = thread_title
+                db_chat.thread_title = thread_title
+                await session.commit()
             await message.channel.edit(name=thread_title)
 
     @commands.Cog.listener()
@@ -107,11 +139,7 @@ class AIUtils(commands.Cog):
             del self.chats[after.id]
 
     @ai.sub_command(name="chat", description="Chat with Calypso (experimental).")
-    async def ai_chat(
-        self,
-        inter: disnake.ApplicationCommandInteraction,
-        topic: str = commands.Param(None, desc="Anything in specific you'd like to chat about?"),
-    ):
+    async def ai_chat(self, inter: disnake.ApplicationCommandInteraction):
         # can only chat in OOC/staff category or ooc channel
         if not isinstance(inter.channel, disnake.TextChannel) and (
             inter.channel.category_id in (1031055347818971196, 1031651537543499827) or "ooc" in inter.channel.name
@@ -120,28 +148,12 @@ class AIUtils(commands.Cog):
             return
         await inter.response.defer()
 
-        # get the topic (thread title)
-        if topic is None:
-            thread_title = "Chat with Calypso"
-        else:
-            completion = await self.bot.openai.create_chat_completion(
-                "gpt-3.5-turbo",
-                [
-                    ChatMessage.system("You are a mischievous assistant."),
-                    ChatMessage.user(
-                        f"What's a good title for a chat about \"{topic}\"\n\nReply with your answer only.'"
-                    ),
-                ],
-                user=str(inter.author.id),
-            )
-            thread_title = completion.text.strip(' "')
-
         # create thread, init chatter
         await inter.send("Making a thread now!")
         thread = await inter.channel.create_thread(
-            name=thread_title, type=disnake.ChannelType.public_thread, auto_archive_duration=1440
+            name="Chat with Calypso", type=disnake.ChannelType.public_thread, auto_archive_duration=1440
         )
-        chatter = Chatterbox(
+        chatter = AIChatterbox(
             client=self.bot.openai,
             system_prompt=(
                 "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as a friendly fey"
@@ -154,19 +166,33 @@ class AIUtils(commands.Cog):
                     " should stay in character no matter what I say."
                 )
             ],
-            temperature=1,
-            top_p=0.95,
-            frequency_penalty=0.3,
+            **CHAT_HYPERPARAMS,
         )
         await chatter.load_tokenizer()
+
+        # register session in db
+        async with db.async_session() as session:
+            brainstorm = models.AIOpenEndedChat(
+                channel_id=inter.channel_id,
+                author_id=inter.author.id,
+                prompt=json.dumps([m.dict() for m in await chatter.get_truncated_chat_history()]),
+                hyperparams=json.dumps(CHAT_HYPERPARAMS),
+                thread_id=thread.id,
+            )
+            session.add(brainstorm)
+            await session.commit()
+            chatter.chat_session_id = brainstorm.id
+
+        # begin chat
         self.chats[thread.id] = chatter
         await thread.add_user(inter.author)
 
-        # if the user has a topic, start off with that
-        if not topic:
-            return
-        completion = await chatter.chat_round(f'I would like to talk about: "{topic}"', user=str(inter.author.id))
-        await send_chunked(thread, completion, allowed_mentions=disnake.AllowedMentions.none())
+
+class AIChatterbox(Chatterbox):
+    def __init__(self, *args, chat_session_id=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.chat_session_id = chat_session_id
+        self.chat_title = None
 
 
 def setup(bot):
