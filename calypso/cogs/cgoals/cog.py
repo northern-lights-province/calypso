@@ -45,7 +45,10 @@ class CommunityGoals(commands.Cog):
 
         # set a task to try deleting the message in 1 minute
         # ignore it if it's not in cg channel, from Calypso, or from a staff member with [nodelete]
-        if message.channel.id != constants.COMMUNITY_GOAL_CHANNEL_ID:
+        if message.channel.id not in {
+            constants.COMMUNITY_GOAL_CHANNEL_ID,
+            constants.COMMUNITY_GOAL_COMPLETED_THREAD_ID,
+        }:
             return
         if message.author.id == self.bot.user.id:
             return
@@ -108,12 +111,13 @@ class CommunityGoals(commands.Cog):
         await message.add_reaction("\u2705")  # green check mark
 
         # if the cg is now 50%, 80%, or fully funded, notify the staff
-        if (
-            cg.log_channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID or cg.log_channel_id is None
-        ):  # only ping for CGs in the global CG channel
+        is_server_cg = cg.log_channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID or cg.log_channel_id is None
+        if is_server_cg:
+            # only ping for CGs in the global CG channel
             mention = f"<@&{constants.STAFF_ROLE_ID}>"
         else:
             mention = ""
+
         log_channel = self.bot.get_channel(constants.STAFF_LOG_CHANNEL_ID)
         if cg.funded_cp >= cg.cost_cp:
             await log_channel.send(f"{mention} The {cg.name} goal is now fully funded!")
@@ -121,6 +125,16 @@ class CommunityGoals(commands.Cog):
             await log_channel.send(f"{mention} The {cg.name} goal is now *80%* funded!")
         elif cg.funded_cp >= cg.cost_cp * 0.5 > funding_before:
             await log_channel.send(f"{mention} The {cg.name} goal is now *50%* funded!")
+
+        # if the cg is global and fully funded, move it to the completed thread
+        if is_server_cg and cg.funded_cp >= cg.cost_cp:
+            await self._delete_cg_message(cg)
+            async with db.async_session() as session:
+                cg = await queries.get_cg_by_slug(session, slug)
+                cg.log_channel_id = constants.COMMUNITY_GOAL_COMPLETED_THREAD_ID
+                msg = await self._send_cg_message(cg)
+                cg.message_id = msg.id
+                await session.commit()
 
     # ==== admin commands ====
     @commands.slash_command(name="cg", description="Manage community goals", guild_ids=[constants.GUILD_ID])
@@ -246,21 +260,28 @@ class CommunityGoals(commands.Cog):
         await self._update_avrae_gvar()
         await inter.send(f"Debug-funded the goal {cg.name} (`{cg.slug}`).")
 
-    @cg.sub_command(name="debug-refresh", description="Refresh all CG embeds")
+    @cg.sub_command(name="debug-refresh", description="Refresh all server CG embeds by deleting and resending them")
     async def cg_debug_refresh(self, inter: disnake.ApplicationCommandInteraction):
         await inter.send("Ok, refreshing all embeds now...")
         async with db.async_session() as session:
             cgs = await queries.get_all_cgs(session)
-        for cg in cgs:
-            await self._edit_cg_message(cg)
+            for cg in cgs:
+                if cg.log_channel_id != constants.COMMUNITY_GOAL_CHANNEL_ID and cg.log_channel_id is not None:
+                    continue
+                await self._delete_cg_message(cg)
+                if cg.funded_cp >= cg.cost_cp:
+                    cg.log_channel_id = constants.COMMUNITY_GOAL_COMPLETED_THREAD_ID
+                msg = await self._send_cg_message(cg)
+                cg.message_id = msg.id
+                await session.commit()
 
     # ==== utils ====
     async def _send_cg_message(self, cg: models.CommunityGoal):
-        cg_channel = self.bot.get_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
+        cg_channel = self.bot.get_partial_messageable(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         return await cg_channel.send(embed=await self._cg_embed(cg))
 
     async def _edit_cg_message(self, cg: models.CommunityGoal):
-        cg_channel = self.bot.get_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
+        cg_channel = self.bot.get_partial_messageable(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         msg = cg_channel.get_partial_message(cg.message_id)
         try:
             await msg.edit(embed=await self._cg_embed(cg))
@@ -270,7 +291,7 @@ class CommunityGoals(commands.Cog):
     async def _delete_cg_message(self, cg: models.CommunityGoal):
         if cg.message_id is None:
             return
-        cg_channel = self.bot.get_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
+        cg_channel = self.bot.get_partial_messageable(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         msg = cg_channel.get_partial_message(cg.message_id)
         try:
             await msg.delete()
