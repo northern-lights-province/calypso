@@ -351,10 +351,14 @@ class CommunityGoals(commands.Cog):
         embed.add_field(name="Progress", value=progress_bar, inline=False)
         if leaderboard:
             embed.add_field(name="Leaderboard", value=leaderboard, inline=False)
-        if cg.log_channel_id == cg.contrib_channel_id:
+        if cg.funded_cp >= cg.cost_cp:
+            embed.set_footer(text="Fully funded!")
+        elif cg.log_channel_id == cg.contrib_channel_id:
             embed.set_footer(text=f"Contribute to this goal with !cg {cg.slug} <amount>!")
         else:
-            contrib_channel = self.bot.get_channel(cg.contrib_channel_id)
+            contrib_channel = await self.bot.get_or_fetch_channel(
+                cg.contrib_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID
+            )
             embed.set_footer(
                 text=f"Contribute to this goal by running !cg {cg.slug} <amount> in #{contrib_channel.name}!"
             )
