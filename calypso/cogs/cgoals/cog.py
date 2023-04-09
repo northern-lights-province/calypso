@@ -5,7 +5,7 @@ import asyncio
 import datetime
 import json
 import time
-from typing import Any, Union
+from typing import Any, TYPE_CHECKING, Union
 from urllib.parse import parse_qs, urlparse
 
 import aiohttp
@@ -19,6 +19,9 @@ from calypso.errors import CalypsoError, UserInputError
 from . import queries
 from .params import cg_param
 
+if TYPE_CHECKING:
+    from calypso import Calypso
+
 # embed color interpolation
 CG_START_COLOR = disnake.Colour(0xFFCC99)
 CG_END_COLOR = disnake.Colour(0x60D394)
@@ -29,7 +32,7 @@ CG_WORKSHOP_ID = "6379515f16eb2e36c2591716"
 
 class CommunityGoals(commands.Cog):
     def __init__(self, bot):
-        self.bot: commands.Bot = bot
+        self.bot: "Calypso" = bot
         self.client = AvraeClient(aiohttp.ClientSession(loop=bot.loop), config.AVRAE_API_KEY)
 
     # ==== message listener ====
@@ -277,11 +280,11 @@ class CommunityGoals(commands.Cog):
 
     # ==== utils ====
     async def _send_cg_message(self, cg: models.CommunityGoal):
-        cg_channel = self.bot.get_partial_messageable(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
+        cg_channel = await self.bot.get_or_fetch_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         return await cg_channel.send(embed=await self._cg_embed(cg))
 
     async def _edit_cg_message(self, cg: models.CommunityGoal):
-        cg_channel = self.bot.get_partial_messageable(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
+        cg_channel = await self.bot.get_or_fetch_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         msg = cg_channel.get_partial_message(cg.message_id)
         try:
             await msg.edit(embed=await self._cg_embed(cg))
@@ -291,7 +294,7 @@ class CommunityGoals(commands.Cog):
     async def _delete_cg_message(self, cg: models.CommunityGoal):
         if cg.message_id is None:
             return
-        cg_channel = self.bot.get_partial_messageable(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
+        cg_channel = await self.bot.get_or_fetch_channel(cg.log_channel_id or constants.COMMUNITY_GOAL_CHANNEL_ID)
         msg = cg_channel.get_partial_message(cg.message_id)
         try:
             await msg.delete()
