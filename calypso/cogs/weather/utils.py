@@ -147,10 +147,12 @@ def weather_desc_full(biome: models.WeatherBiome, weather: CurrentWeather) -> We
     desc = f"It's currently {degrees_f}\u00b0F ({int(k_to_c(temp))}\u00b0C) in {biome.name}. {weather_desc(weather)}"
 
     is_heavy_precipitation = False
+    is_lightly_obscured = False
     fields = []
     for weather_detail in weather.weather:
         fields.append((weather_detail.main, WEATHER_DESC.get(weather_detail.id, weather_detail.description)))
         is_heavy_precipitation = is_heavy_precipitation or extreme_weather.is_heavy_precipitation(weather_detail.id)
+        is_lightly_obscured = is_lightly_obscured or extreme_weather.is_lightly_obscured(weather_detail.id)
 
     # extreme weather
     if degrees_f <= 0:
@@ -161,6 +163,8 @@ def weather_desc_full(biome: models.WeatherBiome, weather: CurrentWeather) -> We
         fields.append(("Strong Wind", extreme_weather.STRONG_WIND))
     if is_heavy_precipitation:
         fields.append(("Heavy Precipitation", extreme_weather.HEAVY_PRECIPITATION))
+    elif is_lightly_obscured:
+        fields.append(("Lightly Obscured", extreme_weather.LIGHTLY_OBSCURED))
     return WeatherDescFull(desc=desc, fields=fields)
 
 

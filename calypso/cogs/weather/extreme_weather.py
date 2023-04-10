@@ -27,7 +27,16 @@ HEAVY_PRECIPITATION = (
     " imposes disadvantage on Wisdom (Perception) checks that rely on hearing."
 )
 
+LIGHTLY_OBSCURED = (
+    "In a lightly obscured area, such as dim light, patchy fog, or moderate foliage, creatures have disadvantage on"
+    " Wisdom (Perception) checks that rely on sight."
+)
+
 
 def is_heavy_precipitation(weather_detail: int):
     # see client for descriptions of weather codes
     return weather_detail in {202, 221, 314, 503, 504, 522, 531, 602, 616, 622, 771, 781}
+
+
+def is_lightly_obscured(weather_detail: int):
+    return weather_detail in {701, 711, 731, 741, 751, 761, 762}
