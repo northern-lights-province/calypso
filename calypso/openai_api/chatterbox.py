@@ -17,9 +17,9 @@ class Chatterbox:
         client: OpenAIClient,
         system_prompt: str,
         always_include_messages: list[ChatMessage] = None,
-        model="gpt-3.5-turbo",
+        model="gpt-4",
         desired_response_tokens: int = 450,  # roughly the size of a discord message
-        max_context_size: int = 4096,  # depends on model,
+        max_context_size: int = 8192,  # depends on model,
         chat_history: list[ChatMessage] = None,
         **hyperparams
     ):

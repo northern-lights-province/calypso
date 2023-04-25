@@ -11,7 +11,7 @@ from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
 from calypso.utils.prompts import chat_prompt
 
 CHAT_HYPERPARAMS = dict(
-    model="gpt-3.5-turbo",
+    model="gpt-4",
     temperature=1,
     max_tokens=450,
     top_p=0.95,
@@ -114,7 +114,7 @@ class AIUtils(commands.Cog):
             and isinstance(message.channel, disnake.Thread)
         ):
             completion = await self.bot.openai.create_chat_completion(
-                "gpt-3.5-turbo",
+                "gpt-4",
                 [
                     ChatMessage.user("Here is the start of a conversation:"),
                     *chatter.chat_history,

@@ -25,7 +25,7 @@ SUMMARY_HYPERPARAMS = dict(
     frequency_penalty=0.5,
 )
 BRAINSTORM_HYPERPARAMS = dict(
-    model="gpt-3.5-turbo",
+    model="gpt-4",
     temperature=1,
     max_tokens=450,
     top_p=0.95,
@@ -431,6 +431,9 @@ def creature_meta(monster: gamedata.Monster) -> str:
 
 def creature_desc(monster: gamedata.Monster) -> str:
     monster_desc = gamedata.GamedataRepository.get_desc_for_monster(monster)
+    if monster_desc is None:
+        log.warning(f"Could not find monster description for {monster.name} ({monster.id})!")
+        return ""
     desc_parts = []
     if monster_desc.characteristics:
         desc_parts.append(monster_desc.characteristics)
