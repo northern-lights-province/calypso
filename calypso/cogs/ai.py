@@ -89,7 +89,6 @@ class AIUtils(commands.Cog):
         # do a chat round w/ the chatterbox
         chatter = self.chats[message.channel.id]
         prompt = chat_prompt(message)
-        await message.channel.trigger_typing()
 
         # record user msg in db
         async with db.async_session() as session:
@@ -98,9 +97,9 @@ class AIUtils(commands.Cog):
             await session.commit()
 
             # do a chat round w/ the chatterbox
-            await message.channel.trigger_typing()
-            response = await chatter.chat_round(prompt, user=str(message.author.id))
-            await send_chunked(message.channel, response, allowed_mentions=disnake.AllowedMentions.none())
+            async with message.channel.typing():
+                response = await chatter.chat_round(prompt, user=str(message.author.id))
+                await send_chunked(message.channel, response, allowed_mentions=disnake.AllowedMentions.none())
 
             # record model msg in db
             model_msg = models.AIChatMessage(chat_id=chatter.chat_session_id, role=ChatRole.ASSISTANT, content=response)

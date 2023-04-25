@@ -55,9 +55,9 @@ async def on_message(bot: "Calypso", message: disnake.Message):
         await session.commit()
 
         # do a chat round w/ the chatterbox
-        await message.channel.trigger_typing()
-        response = await chatter.chat_round(prompt, user=str(message.author.id))
-        await utils.send_chunked(message.channel, response)
+        async with message.channel.typing():
+            response = await chatter.chat_round(prompt, user=str(message.author.id))
+            await utils.send_chunked(message.channel, response)
 
         # record model msg in db
         model_msg = models.EncounterAIBrainstormMessage(
