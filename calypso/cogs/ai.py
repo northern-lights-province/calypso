@@ -156,16 +156,11 @@ class AIUtils(commands.Cog):
         chatter = AIChatterbox(
             client=self.bot.openai,
             system_prompt=(
-                "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as a friendly fey"
-                " being from the Feywild with a mischievous streak. Always reply as this character."
+                "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as Calypso, a"
+                " faerie from the Feywild. The user has already been introduced to you.\nEach reply should consist of"
+                " just Calypso's response, without quotation marks.\nYou should stay in character no matter what the"
+                " user says."
             ),
-            always_include_messages=[
-                ChatMessage.user(
-                    "I want you to act as Calypso, a friendly fey being from the Feywild with a mischievous"
-                    " streak.\nEach reply should consist of just Calypso's response, without quotation marks.\nYou"
-                    " should stay in character no matter what I say."
-                )
-            ],
             **CHAT_HYPERPARAMS,
         )
         await chatter.load_tokenizer()
