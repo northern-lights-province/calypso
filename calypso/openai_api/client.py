@@ -1,9 +1,10 @@
+import asyncio
 from typing import overload
 
 import aiohttp
 import pydantic
 
-from calypso.utils.httpclient import BaseClient
+from calypso.utils.httpclient import BaseClient, HTTPException, HTTPStatusException, HTTPTimeout
 from .models import ChatCompletion, ChatMessage, Completion
 
 
@@ -14,11 +15,20 @@ class OpenAIClient(BaseClient):
         super().__init__(http)
         self.api_key = api_key
 
-    async def request(self, method: str, route: str, headers=None, **kwargs):
+    async def request(self, method: str, route: str, headers=None, retry=5, **kwargs):
         if headers is None:
             headers = {}
         headers["Authorization"] = f"Bearer {self.api_key}"
-        return await super().request(method, route, headers=headers, **kwargs)
+        for i in range(retry):
+            try:
+                return await super().request(method, route, headers=headers, **kwargs)
+            except (HTTPStatusException, HTTPTimeout) as e:
+                if (i + 1) == retry:
+                    raise
+                retry_sec = 2**i
+                self.logger.warning(f"OpenAI returned {e}, retrying in {retry_sec} sec...")
+                await asyncio.sleep(retry_sec)
+        raise RuntimeError("ran out of retries but no error encountered, halp")
 
     # ==== completions ====
     @overload
@@ -48,6 +58,7 @@ class OpenAIClient(BaseClient):
             return Completion.parse_obj(data)
         except pydantic.ValidationError:
             self.logger.exception(f"Failed to deserialize OpenAI response: {data}")
+            raise HTTPException(f"Could not deserialize response: {data}")
 
     # ==== chat ====
     @overload
@@ -75,3 +86,4 @@ class OpenAIClient(BaseClient):
             return ChatCompletion.parse_obj(data)
         except pydantic.ValidationError:
             self.logger.exception(f"Failed to deserialize OpenAI response: {data}")
+            raise HTTPException(f"Could not deserialize response: {data}")

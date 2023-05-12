@@ -10,6 +10,16 @@ class HTTPException(CalypsoError):
     pass
 
 
+class HTTPTimeout(HTTPException):
+    pass
+
+
+class HTTPStatusException(HTTPException):
+    def __init__(self, status_code: int, msg: str):
+        super().__init__(msg)
+        self.status_code = status_code
+
+
 class BaseClient(abc.ABC):
     SERVICE_BASE: str = ...
     logger: logging.Logger = logging.getLogger(__name__)
@@ -26,7 +36,7 @@ class BaseClient(abc.ABC):
                     self.logger.warning(
                         f"{method} {self.SERVICE_BASE}{route} returned {resp.status} {resp.reason}\n{data}"
                     )
-                    raise HTTPException(f"Request returned an error: {resp.status}: {resp.reason}")
+                    raise HTTPStatusException(resp.status, f"Request returned an error: {resp.status}: {resp.reason}")
                 try:
                     if not response_as_text:
                         data = await resp.json()
@@ -41,7 +51,7 @@ class BaseClient(abc.ABC):
                     raise HTTPException(f"Could not deserialize response: {data}")
         except aiohttp.ServerTimeoutError:
             self.logger.warning(f"Request timeout: {method} {self.SERVICE_BASE}{route}")
-            raise HTTPException("Timed out connecting. Please try again in a few minutes.")
+            raise HTTPTimeout("Timed out connecting. Please try again in a few minutes.")
         return data
 
     async def get(self, route: str, **kwargs):
