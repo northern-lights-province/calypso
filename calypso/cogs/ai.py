@@ -4,7 +4,7 @@ import json
 import disnake
 from disnake.ext import commands
 
-from calypso import Calypso, constants, db, models
+from calypso import Calypso, constants, db, models, utils
 from calypso.openai_api.chatterbox import Chatterbox
 from calypso.openai_api.models import ChatMessage, ChatRole
 from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
@@ -77,6 +77,54 @@ class AIUtils(commands.Cog):
 
         for chunk in automation_chunks:
             await modal_inter.channel.send(f"```yaml\n{chunk}\n```")
+
+    @ai_text2auto.sub_command(
+        name="monster-32k", description="Generate automation for a monster's ability using GPT-4 32k."
+    )
+    async def ai_text2auto_monster_gpt4_32k(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        monster: str = commands.Param(desc="The name of the monster."),
+        ability: str = commands.Param(desc="The name of the ability."),
+    ):
+        try:
+            modal_inter, ability_text = await multiline_modal(
+                inter, title=f"{monster}: {ability}", label="Paste the ability's full description", timeout=600
+            )
+        except asyncio.TimeoutError:
+            return
+        await modal_inter.send(f"Generating Avrae automation for {monster}: {ability}```\n{ability_text}\n```")
+        await modal_inter.channel.trigger_typing()
+
+        # build prompt and query GPT-4
+        avrae_docs = (utils.REPO_ROOT / "data" / "automation_ref.rst").read_text()
+        prompt = [
+            ChatMessage.system("You are a D&D player writing game automation for new monsters."),
+            ChatMessage.user(
+                "Here is the documentation for the automation language, written in ReStructuredText format:\n"
+                f"{avrae_docs}\n\n"
+                "Please write automation in JSON format for the following ability. Your"
+                " output should be an AttackModel.\n\n"
+                f"{ability_text}"
+            ),
+        ]
+        completion = await self.bot.openai.create_chat_completion(
+            model="gpt-4-32k",
+            messages=prompt,
+            temperature=0.1,
+            max_tokens=1024,
+            top_p=0.95,
+            user=str(inter.author.id),
+        )
+
+        # just print its response
+        automation_chunks = chunk_text(
+            completion.text,
+            max_chunk_size=1900,
+            chunk_on=("\n",),
+        )
+        for chunk in automation_chunks:
+            await modal_inter.channel.send(chunk)
 
     # === chatgpt ===
     @commands.Cog.listener()
