@@ -105,7 +105,7 @@ class AIUtils(commands.Cog):
                 f"{avrae_docs}\n\n"
                 "Please write automation in JSON format for the following ability. Your"
                 " output should be an AttackModel.\n\n"
-                f"{ability_text}"
+                f"{monster}: {ability}. {ability_text}"
             ),
         ]
         completion = await self.bot.openai.create_chat_completion(
