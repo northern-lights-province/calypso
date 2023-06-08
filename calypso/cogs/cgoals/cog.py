@@ -3,6 +3,7 @@ Community goal management for the NLP. These commands can only be run in the NLP
 """
 import asyncio
 import datetime
+import itertools
 import json
 import time
 from typing import Any, TYPE_CHECKING, Union
@@ -138,6 +139,28 @@ class CommunityGoals(commands.Cog):
                 msg = await self._send_cg_message(cg)
                 cg.message_id = msg.id
                 await session.commit()
+
+    # ==== commands ====
+    @commands.slash_command(
+        name="cg-leaderboard", description="View the full leaderboard of a CG.", guild_ids=[constants.GUILD_ID]
+    )
+    async def cg_leaderboard(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        cg: Any = cg_param(desc="The community goal to view"),
+    ):
+        # leaderboard
+        async with db.async_session() as session:
+            contributions = await queries.get_cg_contribution_leaderboard(session, cg.id)
+        leaderboard = ""
+        if contributions:
+            top_3_emoji = ("\U0001f947", "\U0001f948", "\U0001f949")  # first_place - third_place
+            gen = (f"[{i}]" for i in itertools.count(4))
+            for emoji, (user_id, amount_cp) in zip(itertools.chain(top_3_emoji, gen), contributions):
+                leaderboard += f"{emoji} <@{user_id}> - {amount_cp / 100 :.2f} gp\n"
+        await inter.send(
+            f"**Leaderboard for {cg.name}**\n{leaderboard}", allowed_mentions=disnake.AllowedMentions.none()
+        )
 
     # ==== admin commands ====
     @commands.slash_command(name="cg", description="Manage community goals", guild_ids=[constants.GUILD_ID])
