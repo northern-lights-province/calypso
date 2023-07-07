@@ -23,7 +23,6 @@ class Chatterbox:
         chat_history: list[ChatMessage] = None,
         **hyperparams
     ):
-        hyperparams["max_tokens"] = desired_response_tokens
         self.client = client
         self.tokenizer = None
         self.system_prompt = system_prompt.strip()
@@ -58,10 +57,15 @@ class Chatterbox:
     def message_token_len(self, message: ChatMessage):
         """Returns the number of tokens used by a list of messages."""
         try:
-            return self._message_tokens[message.content]
+            return self._message_tokens[message]
         except KeyError:
             mlen = len(self.tokenizer.encode(message.content)) + 5  # ChatML = 4, role = 1
-            self._message_tokens[message.content] = mlen
+            if message.name:
+                mlen += len(self.tokenizer.encode(message.name))
+            if message.function_call:
+                mlen += len(self.tokenizer.encode(message.function_call.name))
+                mlen += len(self.tokenizer.encode(message.function_call.arguments))
+            self._message_tokens[message] = mlen
             return mlen
 
     async def get_truncated_chat_history(self):
@@ -89,6 +93,7 @@ class Chatterbox:
         await asyncio.get_event_loop().run_in_executor(None, self._load_tokenizer)
 
     async def chat_round(self, query: str, **kwargs) -> str:
+        """Hand over control to the chatterbox until the next instance of user input."""
         async with self.lock:
             # get the user's chat input
             self.chat_history.append(ChatMessage.user(query.strip()))
@@ -100,6 +105,6 @@ class Chatterbox:
             completion = await self.client.create_chat_completion(
                 model=self.model, messages=messages, **self.hyperparams, **kwargs
             )
-            self._message_tokens[completion.text] = completion.usage.completion_tokens + 5
+            self._message_tokens[completion.message] = completion.usage.completion_tokens + 5
             self.chat_history.append(completion.message)
             return completion.text

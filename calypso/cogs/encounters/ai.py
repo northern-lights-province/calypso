@@ -27,7 +27,6 @@ SUMMARY_HYPERPARAMS = dict(
 BRAINSTORM_HYPERPARAMS = dict(
     model="gpt-4",
     temperature=1,
-    max_tokens=450,
     top_p=0.95,
     frequency_penalty=0.3,
 )

@@ -5,7 +5,7 @@ import aiohttp
 import pydantic
 
 from calypso.utils.httpclient import BaseClient, HTTPException, HTTPStatusException, HTTPTimeout
-from .models import ChatCompletion, ChatMessage, Completion
+from .models import ChatCompletion, ChatMessage, Completion, Function, SpecificFunctionCall
 
 
 class OpenAIClient(BaseClient):
@@ -66,19 +66,27 @@ class OpenAIClient(BaseClient):
         self,
         model: str,
         messages: list[ChatMessage],
+        functions: list[Function] | None = None,
+        function_call: SpecificFunctionCall | str | None = None,
         temperature: float = 1.0,
         top_p: float = 1.0,
         n: int = 1,
-        stop: str | list[str] = None,
-        max_tokens: int = None,
+        stop: str | list[str] | None = None,
+        max_tokens: int | None = None,
         presence_penalty: float = 0.0,
         frequency_penalty: float = 0.0,
-        logit_bias: dict = None,
-        user: str = None,
+        logit_bias: dict | None = None,
+        user: str | None = None,
     ) -> ChatCompletion:
         ...
 
     async def create_chat_completion(self, model: str, messages: list[ChatMessage], **kwargs) -> ChatCompletion:
+        # transform pydantic models
+        if "functions" in kwargs:
+            kwargs["functions"] = [f.dict() for f in kwargs["functions"]]
+        if "function_call" in kwargs and isinstance(kwargs["function_call"], SpecificFunctionCall):
+            kwargs["function_call"] = kwargs["function_call"].dict()
+        # call API
         data = await self.post(
             "/chat/completions", json={"model": model, "messages": [cm.dict() for cm in messages], **kwargs}
         )

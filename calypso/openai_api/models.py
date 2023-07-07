@@ -46,9 +46,16 @@ class ChatRole(enum.Enum):
     ASSISTANT = "assistant"
 
 
+class FunctionCall(BaseModel):
+    name: str
+    arguments: dict
+
+
 class ChatMessage(BaseModel):
     role: ChatRole
     content: str
+    name: str | None
+    function_call: FunctionCall | None
 
     class Config:
         use_enum_values = True
@@ -66,6 +73,17 @@ class ChatMessage(BaseModel):
         return cls(role=ChatRole.ASSISTANT, content=content)
 
 
+class Function(BaseModel):
+    name: str
+    description: str | None
+    parameters: dict
+
+
+class SpecificFunctionCall(BaseModel):
+    name: str
+
+
+# ---- response ----
 class ChatCompletionChoice(BaseModel):
     message: ChatMessage
     index: int
