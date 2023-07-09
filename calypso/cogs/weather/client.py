@@ -33,9 +33,9 @@ class _WeatherSystemInfo(BaseModel):
     country: str
     sunrise: datetime.datetime
     sunset: datetime.datetime
-    type: Optional[int]
-    id: Optional[int]
-    message: Optional[Any]
+    type: Optional[int] = None
+    id: Optional[int] = None
+    message: Optional[Any] = None
 
 
 class CurrentWeather(BaseModel):

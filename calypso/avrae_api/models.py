@@ -14,7 +14,7 @@ class Signature(BaseModel):
     channel_id: int
     author_id: int
     timestamp: float
-    workshop_collection_id: str | None
+    workshop_collection_id: str | None = None
     scope: str
     user_data: int
-    guild_id: int | None
+    guild_id: int | None = None

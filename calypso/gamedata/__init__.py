@@ -1,6 +1,6 @@
 import logging
 
-import pydantic
+from pydantic import TypeAdapter
 
 from calypso import utils
 from .monster import Monster, MonsterDescription
@@ -20,9 +20,9 @@ class GamedataRepository:
     @classmethod
     def reload(cls, data_path=DATA_DIR):
         log.info(f"Reloading gamedata...")
-        cls.monsters = pydantic.parse_file_as(list[Monster], data_path / "monsters.json")
-        cls.monster_descriptions = pydantic.parse_file_as(
-            list[MonsterDescription], data_path / "monster_descriptions.json"
+        cls.monsters = TypeAdapter(list[Monster]).validate_json((data_path / "monsters.json").read_text())
+        cls.monster_descriptions = TypeAdapter(list[MonsterDescription]).validate_json(
+            (data_path / "monster_descriptions.json").read_text()
         )
         cls._monster_desc_by_id = {m.monster_id: m for m in cls.monster_descriptions}
         log.info(f"Done! Loaded:\nmonsters: {len(cls.monsters)}\nmondescs: {len(cls.monster_descriptions)}")

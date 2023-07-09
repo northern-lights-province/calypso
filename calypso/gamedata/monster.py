@@ -3,8 +3,7 @@ import re
 from functools import cached_property
 from typing import Optional, Union
 
-from automation_common.validation.models import AttackModel
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from calypso import constants
 from calypso.utils import camel_to_title
@@ -16,10 +15,10 @@ log = logging.getLogger(__name__)
 class MonsterDescription(BaseModel):
     monster_id: int
     monster_name: str
-    characteristics: Optional[str]
-    long: Optional[str]
-    long2: Optional[str]
-    lair: Optional[str]
+    characteristics: Optional[str] = None
+    long: Optional[str] = None
+    long2: Optional[str] = None
+    lair: Optional[str] = None
 
 
 # ==== monster ====
@@ -48,8 +47,8 @@ class AbilityScores(BaseModel):
 
 class Skill(BaseModel):
     value: int
-    prof: Optional[int]
-    bonus: Optional[int]
+    prof: Optional[int] = None
+    bonus: Optional[int] = None
 
 
 class Saves(BaseModel):
@@ -113,8 +112,8 @@ class Skills(BaseModel):
 
 class Resistance(BaseModel):
     dtype: str
-    unless: Optional[list[str]]
-    only: Optional[list[str]]
+    unless: Optional[list[str]] = None
+    only: Optional[list[str]] = None
 
     def __str__(self):
         out = []
@@ -141,9 +140,9 @@ class MonsterFeature(BaseModel):
 class SpellbookSpell(BaseModel):
     name: str
     strict: bool
-    dc: Optional[int]
-    sab: Optional[int]
-    mod: Optional[int]
+    dc: Optional[int] = None
+    sab: Optional[int] = None
+    mod: Optional[int] = None
 
 
 DailySpells = dict[str, int]
@@ -153,15 +152,17 @@ class Spellbook(BaseModel):
     slots: dict[str, int]
     max_slots: dict[str, int]
     spells: list[SpellbookSpell]
-    dc: Optional[int]
-    sab: Optional[int]
+    dc: Optional[int] = None
+    sab: Optional[int] = None
     caster_level: int
-    spell_mod: Optional[int]
+    spell_mod: Optional[int] = None
     at_will: list[str]
     daily: DailySpells
 
 
 class Monster(BaseModel):
+    model_config = ConfigDict(ignored_types=(cached_property,))
+
     id: int
     name: str
     size: str
@@ -181,7 +182,7 @@ class Monster(BaseModel):
     condition_immune: list[str]
     languages: list[str]
     cr: str
-    hide_cr: Optional[bool]
+    hide_cr: Optional[bool] = None
     xp: int
     traits: list[MonsterFeature]
     actions: list[MonsterFeature]
@@ -190,24 +191,21 @@ class Monster(BaseModel):
     mythic_actions: list[MonsterFeature] = []
     bonus_actions: list[MonsterFeature] = []
     la_per_round: int
-    image_url: Optional[str]
-    spellbook: Optional[Spellbook]
+    image_url: Optional[str] = None
+    spellbook: Optional[Spellbook] = None
     resistances: Resistances
-    token_free: Optional[str]
-    token_sub: Optional[str]
-    attacks: list[AttackModel]
+    token_free: Optional[str] = None
+    token_sub: Optional[str] = None
+    attacks: list  # todo validate automation later if needed
     proper: bool
 
     source: str
     is_free: bool = Field(alias="isFree")
-    page: Optional[int]
-    url: Optional[str]
-    entitlement_entity_type: Optional[str] = Field(alias="entitlementEntityType")
-    entitlement_entity_id: Optional[int] = Field(alias="entitlementEntityId")
+    page: Optional[int] = None
+    url: Optional[str] = None
+    entitlement_entity_type: Optional[str] = Field(None, alias="entitlementEntityType")
+    entitlement_entity_id: Optional[int] = Field(None, alias="entitlementEntityId")
     is_legacy: bool = Field(False, alias="isLegacy")
-
-    class Config:
-        keep_untouched = (cached_property,)
 
     @cached_property
     def name_re(self) -> re.Pattern:

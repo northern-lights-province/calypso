@@ -1,7 +1,8 @@
 import enum
+import json
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 # ==== completions ====
@@ -15,8 +16,8 @@ class CompletionLogProbs(BaseModel):
 class CompletionChoice(BaseModel):
     text: str
     index: int
-    logprobs: CompletionLogProbs | None
-    finish_reason: str | None
+    logprobs: CompletionLogProbs | None = None
+    finish_reason: str | None = None
 
 
 class CompletionUsage(BaseModel):
@@ -52,13 +53,12 @@ class FunctionCall(BaseModel):
 
 
 class ChatMessage(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     role: ChatRole
     content: str
-    name: str | None
-    function_call: FunctionCall | None
-
-    class Config:
-        use_enum_values = True
+    name: str | None = None
+    function_call: FunctionCall | None = None
 
     @classmethod
     def system(cls, content):
@@ -75,7 +75,7 @@ class ChatMessage(BaseModel):
 
 class Function(BaseModel):
     name: str
-    description: str | None
+    description: str | None = None
     parameters: dict
 
 
@@ -87,7 +87,7 @@ class SpecificFunctionCall(BaseModel):
 class ChatCompletionChoice(BaseModel):
     message: ChatMessage
     index: int
-    finish_reason: str | None
+    finish_reason: str | None = None
 
 
 class ChatCompletion(BaseModel):
