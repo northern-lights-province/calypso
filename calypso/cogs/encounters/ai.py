@@ -40,6 +40,8 @@ async def on_message(bot: "Calypso", message: disnake.Message):
         return
     if message.author.bot or message.is_system():
         return
+    if message.content.startswith("!"):
+        return
 
     # get the chatterbox
     chatter = bot.enc_chatterboxes[message.channel.id]
@@ -218,10 +220,8 @@ class EncounterHelperController(disnake.ui.View):
         self._b_summary_feedback_neg.disabled = False
         await self.refresh_content(interaction)
         await interaction.send(
-            (
-                "Glad I could help! If you have a moment and would like to help me learn, you can give more detailed"
-                " feedback by clicking the button."
-            ),
+            "Glad I could help! If you have a moment and would like to help me learn, you can give more detailed"
+            " feedback by clicking the button.",
             ephemeral=True,
             view=FeedbackView(summary),
         )
@@ -235,10 +235,8 @@ class EncounterHelperController(disnake.ui.View):
         self._b_summary_feedback_pos.disabled = False
         await self.refresh_content(interaction)
         await interaction.send(
-            (
-                "Sorry about that! If you have a moment and would like to help me learn, you can give more detailed"
-                " feedback by clicking the button."
-            ),
+            "Sorry about that! If you have a moment and would like to help me learn, you can give more detailed"
+            " feedback by clicking the button.",
             ephemeral=True,
             view=FeedbackView(summary),
         )
@@ -312,10 +310,8 @@ class EncounterHelperController(disnake.ui.View):
 
         # send enc to channel plus instructions
         await thread.send(
-            (
-                "Here's a thread for us to brainstorm! Ask me questions about the monster, setting, or general"
-                " encounter ideas. Here's the encounter, for your reference:"
-            ),
+            "Here's a thread for us to brainstorm! Ask me questions about the monster, setting, or general"
+            " encounter ideas. Here's the encounter, for your reference:",
             embed=self.embed,
         )
 

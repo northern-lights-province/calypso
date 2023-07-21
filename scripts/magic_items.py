@@ -2,7 +2,7 @@ import csv
 import json
 import re
 
-RARITY_RE = re.compile("(?<!very)\Wrare\W")
+RARITY_RE = re.compile("\Wvery\Wrare\W")
 
 
 def rarity_filter():
@@ -12,7 +12,7 @@ def rarity_filter():
         if item["isLegacy"]:
             continue
         if RARITY_RE.search(item["meta"]):
-            print(f'{item["name"]}, {item["source"]}')
+            print(f'"{item["name"]}"; {item["source"]}')
 
 
 def csv_to_json():
