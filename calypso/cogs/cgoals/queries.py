@@ -53,6 +53,17 @@ async def get_cg_contribution_leaderboard(session, cg_id: int) -> list[Contribut
     return [ContributionLeaderboardEntry(*row) for row in result]
 
 
+async def get_cg_contribution_leaderboard_all(session) -> list[ContributionLeaderboardEntry]:
+    query = """
+    SELECT user_id, SUM(amount_cp) AS total
+    FROM cg_contributions
+    GROUP BY user_id
+    ORDER BY total DESC
+    """
+    result = await session.execute(text(query))
+    return [ContributionLeaderboardEntry(*row) for row in result]
+
+
 async def _get_cg(session, stmt, load_contributions) -> models.CommunityGoal:
     if load_contributions:
         stmt = stmt.options(selectinload(models.CommunityGoal.contributions))

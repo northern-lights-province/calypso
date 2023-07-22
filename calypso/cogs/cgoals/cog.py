@@ -162,6 +162,23 @@ class CommunityGoals(commands.Cog):
             f"**Leaderboard for {cg.name}**\n{leaderboard}", allowed_mentions=disnake.AllowedMentions.none()
         )
 
+    @commands.slash_command(
+        name="cg-leaderboard-all",
+        description="View the leaderboard of all CG contributions.",
+        guild_ids=[constants.GUILD_ID],
+    )
+    async def cg_leaderboard_all(self, inter: disnake.ApplicationCommandInteraction):
+        # leaderboard
+        async with db.async_session() as session:
+            contributions = await queries.get_cg_contribution_leaderboard_all(session)
+        leaderboard = ""
+        if contributions:
+            top_3_emoji = ("\U0001f947", "\U0001f948", "\U0001f949")  # first_place - third_place
+            gen = (f"[{i}]" for i in itertools.count(4))
+            for emoji, (user_id, amount_cp) in zip(itertools.chain(top_3_emoji, gen), contributions):
+                leaderboard += f"{emoji} <@{user_id}> - {amount_cp / 100 :.2f} gp\n"
+        await inter.send(f"**All CG Leaderboard**\n{leaderboard}", allowed_mentions=disnake.AllowedMentions.none())
+
     # ==== admin commands ====
     @commands.slash_command(name="cg", description="Manage community goals", guild_ids=[constants.GUILD_ID])
     @commands.default_member_permissions(manage_guild=True)
