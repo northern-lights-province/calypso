@@ -216,7 +216,9 @@ class AIUtils(commands.Cog):
             brainstorm = models.AIOpenEndedChat(
                 channel_id=inter.channel_id,
                 author_id=inter.author.id,
-                prompt=json.dumps([m.dict() for m in await chatter.get_truncated_chat_history()]),
+                prompt=json.dumps(
+                    [m.model_dump(mode="json", exclude_none=True) for m in await chatter.get_truncated_chat_history()]
+                ),
                 hyperparams=json.dumps(CHAT_HYPERPARAMS),
                 thread_id=thread.id,
             )

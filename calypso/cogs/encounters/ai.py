@@ -297,7 +297,9 @@ class EncounterHelperController(disnake.ui.View):
         async with db.async_session() as session:
             brainstorm = models.EncounterAIBrainstormSession(
                 encounter_id=self.encounter.id,
-                prompt=json.dumps([m.dict() for m in await chatter.get_truncated_chat_history()]),
+                prompt=json.dumps(
+                    [m.model_dump(mode="json", exclude_none=True) for m in await chatter.get_truncated_chat_history()]
+                ),
                 hyperparams=json.dumps(BRAINSTORM_HYPERPARAMS),
                 thread_id=thread.id,
             )
