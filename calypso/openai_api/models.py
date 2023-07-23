@@ -1,5 +1,4 @@
 import enum
-import json
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -48,12 +47,14 @@ class ChatRole(enum.Enum):
 
 
 class FunctionCall(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     name: str
     arguments: dict
 
 
 class ChatMessage(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(frozen=True)
 
     role: ChatRole
     content: str

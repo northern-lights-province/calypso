@@ -83,12 +83,17 @@ class OpenAIClient(BaseClient):
     async def create_chat_completion(self, model: str, messages: list[ChatMessage], **kwargs) -> ChatCompletion:
         # transform pydantic models
         if "functions" in kwargs:
-            kwargs["functions"] = [f.dict() for f in kwargs["functions"]]
+            kwargs["functions"] = [f.model_dump(exclude_none=True) for f in kwargs["functions"]]
         if "function_call" in kwargs and isinstance(kwargs["function_call"], SpecificFunctionCall):
-            kwargs["function_call"] = kwargs["function_call"].dict()
+            kwargs["function_call"] = kwargs["function_call"].model_dump(exclude_none=True)
         # call API
         data = await self.post(
-            "/chat/completions", json={"model": model, "messages": [cm.dict() for cm in messages], **kwargs}
+            "/chat/completions",
+            json={
+                "model": model,
+                "messages": [cm.model_dump(mode="json", exclude_none=True) for cm in messages],
+                **kwargs,
+            },
         )
         try:
             return ChatCompletion.parse_obj(data)
