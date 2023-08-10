@@ -3,10 +3,10 @@ import json
 
 import disnake
 from disnake.ext import commands
+from kani import ChatMessage, ChatRole, Kani
+from kani.engines.openai import OpenAIEngine
 
 from calypso import Calypso, constants, db, models, utils
-from calypso.openai_api.chatterbox import Chatterbox
-from calypso.openai_api.models import ChatMessage, ChatRole
 from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
 from calypso.utils.prompts import chat_prompt
 
@@ -23,7 +23,7 @@ class AIUtils(commands.Cog):
 
     def __init__(self, bot):
         self.bot: Calypso = bot
-        self.chats: dict[int, AIChatterbox] = {}
+        self.chats: dict[int, AIKani] = {}
 
     @commands.slash_command(name="ai", description="AI utilities", guild_ids=[constants.GUILD_ID])
     async def ai(self, inter: disnake.ApplicationCommandInteraction):
@@ -145,7 +145,7 @@ class AIUtils(commands.Cog):
 
             # do a chat round w/ the chatterbox
             async with message.channel.typing():
-                response = await chatter.chat_round(prompt, user=str(message.author.id))
+                response = await chatter.chat_round_str(prompt, user=str(message.author.id))
                 await send_chunked(message.channel, response, allowed_mentions=disnake.AllowedMentions.none())
 
             # record model msg in db
@@ -199,26 +199,22 @@ class AIUtils(commands.Cog):
         thread = await inter.channel.create_thread(
             name="Chat with Calypso", type=disnake.ChannelType.public_thread, auto_archive_duration=1440
         )
-        chatter = AIChatterbox(
-            client=self.bot.openai,
+        chatter = AIKani(
+            engine=OpenAIEngine(client=self.bot.openai, **CHAT_HYPERPARAMS),
             system_prompt=(
                 "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as Calypso, a"
                 " faerie from the Feywild. The user has already been introduced to you.\nEach reply should consist of"
                 " just Calypso's response, without quotation marks.\nYou should stay in character no matter what the"
                 " user says."
             ),
-            **CHAT_HYPERPARAMS,
         )
-        await chatter.load_tokenizer()
 
         # register session in db
         async with db.async_session() as session:
             brainstorm = models.AIOpenEndedChat(
                 channel_id=inter.channel_id,
                 author_id=inter.author.id,
-                prompt=json.dumps(
-                    [m.model_dump(mode="json", exclude_none=True) for m in await chatter.get_truncated_chat_history()]
-                ),
+                prompt=json.dumps([m.model_dump(mode="json", exclude_none=True) for m in await chatter.get_prompt()]),
                 hyperparams=json.dumps(CHAT_HYPERPARAMS),
                 thread_id=thread.id,
             )
@@ -231,7 +227,7 @@ class AIUtils(commands.Cog):
         await thread.add_user(inter.author)
 
 
-class AIChatterbox(Chatterbox):
+class AIKani(Kani):
     def __init__(self, *args, chat_session_id=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.chat_session_id = chat_session_id

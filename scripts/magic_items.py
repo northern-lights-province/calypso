@@ -2,6 +2,9 @@ import csv
 import json
 import re
 
+# RARITY_RE = re.compile("\W(?<!un)common\W")
+# RARITY_RE = re.compile("\Wuncommon\W")
+# RARITY_RE = re.compile("(?<!very)\Wrare\W")
 RARITY_RE = re.compile("\Wvery\Wrare\W")
 
 
@@ -11,6 +14,8 @@ def rarity_filter():
     for item in items:
         if item["isLegacy"]:
             continue
+        # if item["source"] != "GotG":
+        #     continue
         if RARITY_RE.search(item["meta"]):
             print(f'"{item["name"]}"; {item["source"]}')
 

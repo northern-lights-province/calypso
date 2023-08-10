@@ -1,8 +1,8 @@
 asyncpg==0.27.0
 d20~=1.1.2
-disnake==2.8.1
-gspread==5.7.2
-pydantic~=2.0.2
-rapidfuzz==2.13.7
+disnake==2.9.0
+kani[openai]~=0.1.0
+gspread~=5.10.0
+pydantic~=2.1.1
+rapidfuzz~=3.2.0
 sqlalchemy==1.4.44
-tiktoken==0.3.2

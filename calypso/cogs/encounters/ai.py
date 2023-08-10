@@ -6,11 +6,11 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 import disnake.ui
+from kani import ChatMessage, ChatRole, Kani
+from kani.engines.openai import OpenAIEngine
 
 from calypso import constants, db, gamedata, models, utils
 from calypso.cogs import weather
-from calypso.openai_api.chatterbox import Chatterbox
-from calypso.openai_api.models import ChatMessage, ChatRole
 from . import queries
 
 if TYPE_CHECKING:
@@ -57,7 +57,7 @@ async def on_message(bot: "Calypso", message: disnake.Message):
 
         # do a chat round w/ the chatterbox
         async with message.channel.typing():
-            response = await chatter.chat_round(prompt, user=str(message.author.id))
+            response = await chatter.chat_round_str(prompt, user=str(message.author.id))
             await utils.send_chunked(message.channel, response)
 
         # record model msg in db
@@ -272,8 +272,8 @@ class EncounterHelperController(disnake.ui.View):
             log.exception("Could not get weather:")
 
         # load up a chatterbox
-        chatter = EncChatterbox(
-            client=interaction.bot.openai,
+        chatter = EncKani(
+            engine=OpenAIEngine(client=interaction.bot.openai, **BRAINSTORM_HYPERPARAMS),
             system_prompt=(
                 "You are a creative D&D player and DM named Calypso.\n"
                 "Avoid mentioning game stats. You may use information from common sense, mythology, and culture."
@@ -288,18 +288,14 @@ class EncounterHelperController(disnake.ui.View):
                 )
             ],
             chat_history=chat_history,
-            **BRAINSTORM_HYPERPARAMS,
         )
-        await chatter.load_tokenizer()
         self.chatterbox = chatter
 
         # register session in db
         async with db.async_session() as session:
             brainstorm = models.EncounterAIBrainstormSession(
                 encounter_id=self.encounter.id,
-                prompt=json.dumps(
-                    [m.model_dump(mode="json", exclude_none=True) for m in await chatter.get_truncated_chat_history()]
-                ),
+                prompt=json.dumps([m.model_dump(mode="json", exclude_none=True) for m in await chatter.get_prompt()]),
                 hyperparams=json.dumps(BRAINSTORM_HYPERPARAMS),
                 thread_id=thread.id,
             )
@@ -390,7 +386,7 @@ class FeedbackView(disnake.ui.View):
 
 
 # ==== enc chatterbox ====
-class EncChatterbox(Chatterbox):
+class EncKani(Kani):
     def __init__(self, *args, chat_session_id=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.chat_session_id = chat_session_id
