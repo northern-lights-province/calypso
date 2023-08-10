@@ -1,11 +1,11 @@
 import datetime
 import re
 
+from kani import ChatRole
 from sqlalchemy import BigInteger, Column, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from .db import Base
-from .openai_api.models import ChatRole
 
 
 # ==== weather ====
@@ -186,7 +186,18 @@ class AIChatMessage(Base):
     id = Column(Integer, primary_key=True)
     chat_id = Column(Integer, ForeignKey("ai_chats.id", ondelete="CASCADE"))
     role = Column(Enum(ChatRole), nullable=False)
-    content = Column(String, nullable=False)
+    content = Column(String, nullable=True)
     timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
 
     chat = relationship("AIOpenEndedChat")
+
+
+class AIFunctionCall(Base):
+    __tablename__ = "ai_chat_function_calls"
+
+    id = Column(Integer, primary_key=True)
+    message_id = Column(Integer, ForeignKey("ai_chat_messages.id", ondelete="CASCADE"))
+    name = Column(String, nullable=False)
+    arguments = Column(String, nullable=False)
+
+    message = relationship("AIChatMessage")

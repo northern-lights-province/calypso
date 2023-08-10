@@ -3,12 +3,13 @@ import json
 
 import disnake
 from disnake.ext import commands
-from kani import ChatMessage, ChatRole, Kani
+from kani import ChatMessage, ChatRole
 from kani.engines.openai import OpenAIEngine
 
 from calypso import Calypso, constants, db, models, utils
 from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
 from calypso.utils.prompts import chat_prompt
+from .aikani import AIKani
 
 CHAT_HYPERPARAMS = dict(
     model="gpt-4",
@@ -145,13 +146,23 @@ class AIUtils(commands.Cog):
 
             # do a chat round w/ the chatterbox
             async with message.channel.typing():
-                response = await chatter.chat_round_str(prompt, user=str(message.author.id))
-                await send_chunked(message.channel, response, allowed_mentions=disnake.AllowedMentions.none())
+                async for msg in chatter.full_round(prompt, user=str(message.author.id)):
+                    if msg.content:
+                        await send_chunked(
+                            message.channel, msg.content, allowed_mentions=disnake.AllowedMentions.none()
+                        )
 
-            # record model msg in db
-            model_msg = models.AIChatMessage(chat_id=chatter.chat_session_id, role=ChatRole.ASSISTANT, content=response)
-            session.add(model_msg)
-            await session.commit()
+                    # record model msg in db
+                    model_msg = models.AIChatMessage(
+                        chat_id=chatter.chat_session_id, role=ChatRole.ASSISTANT, content=msg.content
+                    )
+                    session.add(model_msg)
+                    if msg.function_call:
+                        func_call = models.AIFunctionCall(
+                            message=model_msg, name=msg.function_call.name, arguments=msg.function_call.arguments
+                        )
+                        session.add(func_call)
+                    await session.commit()
 
         # do a thread rename after 2 rounds
         if (
@@ -200,6 +211,8 @@ class AIUtils(commands.Cog):
             name="Chat with Calypso", type=disnake.ChannelType.public_thread, auto_archive_duration=1440
         )
         chatter = AIKani(
+            bot=self.bot,
+            channel_id=thread.id,
             engine=OpenAIEngine(client=self.bot.openai, **CHAT_HYPERPARAMS),
             system_prompt=(
                 "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as Calypso, a"
@@ -225,14 +238,3 @@ class AIUtils(commands.Cog):
         # begin chat
         self.chats[thread.id] = chatter
         await thread.add_user(inter.author)
-
-
-class AIKani(Kani):
-    def __init__(self, *args, chat_session_id=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.chat_session_id = chat_session_id
-        self.chat_title = None
-
-
-def setup(bot):
-    bot.add_cog(AIUtils(bot))
