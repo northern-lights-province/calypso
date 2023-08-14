@@ -4,19 +4,13 @@ import json
 import disnake
 from disnake.ext import commands
 from kani import ChatMessage, ChatRole
-from kani.engines.openai import OpenAIEngine
+from playwright.async_api import async_playwright
 
 from calypso import Calypso, constants, db, models, utils
 from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
 from calypso.utils.prompts import chat_prompt
 from .aikani import AIKani
-
-CHAT_HYPERPARAMS = dict(
-    model="gpt-4",
-    temperature=1,
-    top_p=0.95,
-    frequency_penalty=0.3,
-)
+from .engines import CHAT_HYPERPARAMS, chat_engine
 
 
 class AIUtils(commands.Cog):
@@ -25,6 +19,12 @@ class AIUtils(commands.Cog):
     def __init__(self, bot):
         self.bot: Calypso = bot
         self.chats: dict[int, AIKani] = {}
+        self.playwright = None
+        self.browser = None
+
+    async def cog_load(self):
+        self.playwright = await async_playwright().start()
+        self.browser = await self.playwright.chromium.launch(headless=True)
 
     @commands.slash_command(name="ai", description="AI utilities", guild_ids=[constants.GUILD_ID])
     async def ai(self, inter: disnake.ApplicationCommandInteraction):
@@ -213,7 +213,8 @@ class AIUtils(commands.Cog):
         chatter = AIKani(
             bot=self.bot,
             channel_id=thread.id,
-            engine=OpenAIEngine(client=self.bot.openai, **CHAT_HYPERPARAMS),
+            browser=self.browser,
+            engine=chat_engine,
             system_prompt=(
                 "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as Calypso, a"
                 " faerie from the Feywild. The user has already been introduced to you.\nEach reply should consist of"
