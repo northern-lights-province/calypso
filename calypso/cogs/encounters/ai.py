@@ -278,7 +278,7 @@ class EncounterHelperController(disnake.ui.View):
                 "You are a creative D&D player and DM named Calypso.\n"
                 "Avoid mentioning game stats. You may use information from common sense, mythology, and culture."
             ),
-            always_include_messages=[
+            always_included_messages=[
                 ChatMessage.user(
                     f"I'm running this D&D encounter: {self.encounter.rendered_text_nolinks}\n\n"
                     f"{setting_and_creatures(self.encounter, self.monsters)}\n\n"
