@@ -3,9 +3,9 @@ from io import BytesIO
 from typing import Annotated, Optional, TYPE_CHECKING
 
 import disnake
-from kani import AIParam, ChatMessage, Kani, ai_function
+from kani import AIParam, ChatMessage, ChatRole, Kani, ai_function
 
-from .webutils import get_links, web_summarize
+from .webutils import get_links, web_markdownify, web_summarize
 
 if TYPE_CHECKING:
     from calypso import Calypso
@@ -20,9 +20,14 @@ class AIKani(Kani):
         self.chat_session_id = chat_session_id
         self.chat_title = None
         # web
+        self.max_webpage_len = 1024
         self.browser = browser
         self.context = None
         self.page = None
+
+    @property
+    def last_user_message(self) -> ChatMessage | None:
+        return next((m for m in self.chat_history if m.role == ChatRole.USER), None)
 
     # ==== web ====
     # browser management
@@ -68,10 +73,14 @@ class AIKani(Kani):
             self.page = await context.new_page()
         query_enc = urllib.parse.quote_plus(query)
         await self.goto_page(f"https://www.google.com/search?q={query_enc}")
+        # content
+        search_text = await self.page.inner_text("#main")
+        if "Content Navigation Bar" in search_text:
+            _, search_text = search_text.split("Content Navigation Bar", 1)
+        # links
         search_loc = self.page.locator("#search")
-        search_text = await search_loc.inner_text()
         links = await get_links(search_loc)
-        return f"{search_text}\n\n===== Links =====\n{links.model_dump_json(indent=2)}"
+        return f"{search_text.strip()}\n\n===== Links =====\n{links.model_dump_json(indent=2)}"
 
     @ai_function()
     async def visit_page(self, href: str):
@@ -80,24 +89,23 @@ class AIKani(Kani):
         page = await self.get_page()
         # header
         title = await page.title()
-        header = f"{title}\n{'=' * len(title)}\n"
+        header = f"{title}\n{'=' * len(title)}\n\n"
         # content
-        content = await page.inner_text("body")
-        # links
-        links = await get_links(page)
-        if links:
-            links_str = f"\n\nLinks\n=====\n{links.model_dump_json(indent=2)}"
-        else:
-            links_str = ""
+        content_html = await page.inner_html("body")
+        content = web_markdownify(content_html, page.url)
         # summarization
-        if self.message_token_len(ChatMessage.function("visit_page", content)) > 1024:
-            content = await web_summarize(content)
-        if links_str and self.message_token_len(ChatMessage.function("visit_page", links_str)) > 512:
-            links_str = await web_summarize(
-                links_str.strip(),
-                task=f"Please extract the most important links from above given the following context:\n{content}",
-            )
-        result = header + content + links_str
+        if self.message_token_len(ChatMessage.function("visit_page", content)) > self.max_webpage_len:
+            if last_user_msg := self.last_user_message:
+                content = await web_summarize(
+                    content,
+                    task=(
+                        "Please summarize the main content of the webpage above.\n"
+                        f"Keep the current goal in mind: {last_user_msg.content}"
+                    ),
+                )
+            else:
+                content = await web_summarize(content)
+        result = header + content
         return result
 
     # ==== discord ====
