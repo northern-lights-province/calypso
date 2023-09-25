@@ -80,6 +80,7 @@ class Onboarding(commands.Cog):
             auto_archive_duration=1440,
         )
         await thread.add_user(interaction.author)
+        await interaction.send("Thread created!", ephemeral=True)
 
     # listener
     @commands.Cog.listener()
