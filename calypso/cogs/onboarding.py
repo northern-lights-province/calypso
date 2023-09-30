@@ -77,7 +77,7 @@ class Onboarding(commands.Cog):
         thread = await channel.create_thread(
             name=thread_name,
             type=disnake.ChannelType.private_thread,
-            auto_archive_duration=1440,
+            auto_archive_duration=10080,
         )
         await thread.add_user(interaction.author)
         await interaction.send("Thread created!", ephemeral=True)
