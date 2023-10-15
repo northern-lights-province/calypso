@@ -50,7 +50,7 @@ class AIKani(Kani):
 
     async def goto_page(self, *args, **kwargs):
         page = await self.get_page()
-        retval = await page.goto(*args, **kwargs)
+        await page.goto(*args, **kwargs)
         # send a screenshot to the thread
         screenshot_bytes = await page.screenshot()
         channel = await self.bot.get_or_fetch_channel(self.channel_id)
@@ -58,15 +58,14 @@ class AIKani(Kani):
         embed.set_image(url="attachment://screenshot.png")
         screenshot = disnake.File(BytesIO(screenshot_bytes), filename="screenshot.png")
         await channel.send(embed=embed, file=screenshot)
-        return retval
+        return page
 
     # browsing
     @ai_function()
     async def search(self, query: str):
         """Search a query on Google."""
-        page = await self.get_page()
         query_enc = urllib.parse.quote_plus(query)
-        await page.goto(f"https://www.google.com/search?q={query_enc}")
+        page = await self.goto_page(f"https://www.google.com/search?q={query_enc}")
         # content
         search_html = await page.inner_html("#main")
         search_text = web_markdownify(search_html, include_links=False)
@@ -78,8 +77,7 @@ class AIKani(Kani):
     @ai_function(auto_truncate=4096)
     async def visit_page(self, href: str):
         """Visit a web page and view its contents."""
-        page = await self.get_page()
-        await page.goto(href)
+        page = await self.goto_page(href)
         # header
         title = await page.title()
         header = f"{title}\n{'=' * len(title)}\n{page.url}\n\n"
