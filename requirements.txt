@@ -1,10 +1,10 @@
 asyncpg==0.27.0
 d20~=1.1.2
 disnake==2.9.0
-kani[openai]==0.2.0
+kani[openai]~=0.4.0
 gspread~=5.10.0
-markdownify~=0.11.6
 playwright~=1.37.0
 pydantic~=2.1.1
 rapidfuzz~=3.2.0
 sqlalchemy==1.4.44
+trafilatura~=1.6.2

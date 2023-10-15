@@ -147,14 +147,14 @@ class AIUtils(commands.Cog):
             # do a chat round w/ the chatterbox
             async with message.channel.typing():
                 async for msg in chatter.full_round(prompt, user=str(message.author.id)):
-                    if msg.content:
+                    if msg.role == ChatRole.ASSISTANT and msg.content:
                         await send_chunked(
                             message.channel, msg.content, allowed_mentions=disnake.AllowedMentions.none()
                         )
 
-                    # record model msg in db
+                    # record msg in db
                     model_msg = models.AIChatMessage(
-                        chat_id=chatter.chat_session_id, role=ChatRole.ASSISTANT, content=msg.content
+                        chat_id=chatter.chat_session_id, role=msg.role, content=msg.content
                     )
                     session.add(model_msg)
                     if msg.function_call:

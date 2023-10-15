@@ -1,11 +1,11 @@
 import urllib.parse
 from io import BytesIO
-from typing import Annotated, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 import disnake
-from kani import AIParam, ChatMessage, ChatRole, Kani, ai_function
+from kani import ChatMessage, ChatRole, Kani, ai_function
 
-from .webutils import get_links, web_markdownify, web_summarize
+from .webutils import get_google_links, web_markdownify, web_summarize
 
 if TYPE_CHECKING:
     from calypso import Calypso
@@ -62,37 +62,30 @@ class AIKani(Kani):
 
     # browsing
     @ai_function()
-    async def search(
-        self,
-        query: str,
-        new_tab: Annotated[bool, AIParam("Whether to search in a new tab or the current tab.")] = False,
-    ):
+    async def search(self, query: str):
         """Search a query on Google."""
-        if new_tab:
-            context = await self.get_context()
-            self.page = await context.new_page()
+        page = await self.get_page()
         query_enc = urllib.parse.quote_plus(query)
-        await self.goto_page(f"https://www.google.com/search?q={query_enc}")
+        await page.goto(f"https://www.google.com/search?q={query_enc}")
         # content
-        search_text = await self.page.inner_text("#main")
-        if "Content Navigation Bar" in search_text:
-            _, search_text = search_text.split("Content Navigation Bar", 1)
+        search_html = await page.inner_html("#main")
+        search_text = web_markdownify(search_html, include_links=False)
         # links
-        search_loc = self.page.locator("#search")
-        links = await get_links(search_loc)
-        return f"{search_text.strip()}\n\n===== Links =====\n{links.model_dump_json(indent=2)}"
+        search_loc = page.locator("#search")
+        links = await get_google_links(search_loc)
+        return f"{search_text.strip()}\n\n===== Links =====\n{links.to_md_str()}"
 
-    @ai_function()
+    @ai_function(auto_truncate=4096)
     async def visit_page(self, href: str):
         """Visit a web page and view its contents."""
-        await self.goto_page(href)
         page = await self.get_page()
+        await page.goto(href)
         # header
         title = await page.title()
-        header = f"{title}\n{'=' * len(title)}\n\n"
+        header = f"{title}\n{'=' * len(title)}\n{page.url}\n\n"
         # content
-        content_html = await page.inner_html("body")
-        content = web_markdownify(content_html, page.url)
+        content_html = await page.content()
+        content = web_markdownify(content_html)
         # summarization
         if self.message_token_len(ChatMessage.function("visit_page", content)) > self.max_webpage_len:
             if last_user_msg := self.last_user_message:
