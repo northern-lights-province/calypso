@@ -2,6 +2,7 @@
 Random encounter tables for the NLP. These commands can only be run in the NLP server.
 """
 import asyncio
+import random
 import re
 from bisect import bisect_left
 
@@ -10,11 +11,21 @@ import disnake
 from disnake.ext import commands
 
 from calypso import Calypso, constants, db, models
+from calypso.errors import CalypsoError
 from calypso.utils.functions import multiline_modal
+from calypso.utils.typing import EmbedField
 from . import ai, matcha, queries
 from .ai import EncounterHelperController
-from .client import EncounterClient, EncounterRepository
+from .client import EncounterClient, EncounterRepository, Tier
 from .params import biome_param
+
+UNDERDARK_BIOME = "NLPUnderdark"
+
+
+class NoValidTier(CalypsoError):
+    def __init__(self, msg):
+        super().__init__(msg)
+        self.msg = msg
 
 
 class Encounters(commands.Cog):
@@ -58,16 +69,54 @@ class Encounters(commands.Cog):
             echannel = None
 
         # find the biome and tier
-        biome_tiers = [t for t in EncounterRepository.tiers if t.biome == biome]
-        if not biome_tiers:
-            return await inter.send(f"I couldn't find a biome named {biome!r}.", ephemeral=private)
-        tier_obj = next((t for t in biome_tiers if t.tier == tier), None)
-        if tier_obj is None:
-            available_tiers = ", ".join(str(t.tier) for t in biome_tiers)
-            return await inter.send(
-                f"I couldn't find an encounter table for {biome}, tier {tier} (available tiers: {available_tiers}).",
-                ephemeral=private,
-            )
+        try:
+            tier_obj = _get_biome_tier(biome, tier)
+        except NoValidTier as e:
+            return await inter.send(e.msg, ephemeral=private)
+
+        # if we are in the underdark, also choose a random biome
+        additional_embed_fields: list[EmbedField] = []
+        if biome == UNDERDARK_BIOME:
+            async with db.async_session() as session:
+                all_echannels = await queries.get_all_encounter_channels(session)
+            random_echannel = random.choice(all_echannels)
+            # if we rolled underdark, output them to the city
+            if random_echannel.enc_table_name == UNDERDARK_BIOME:
+                additional_embed_fields.append(
+                    EmbedField(
+                        name="Underdark Transport",
+                        value=(
+                            "Following the winding tunnels, you find a passageway to the **City of Lights**. After"
+                            " resolving the encounter, you may spend a travel token to exit to the city or to roll a"
+                            " new encounter and follow a different tunnel."
+                        ),
+                    )
+                )
+            # otherwise, build a new tier obj with the closest tier
+            else:
+                additional_table = _get_biome_tier(random_echannel.enc_table_name, tier, closest=True)
+                weight = 0.5 if additional_table.tier == tier else 0.1
+                additional_embed_fields.append(
+                    EmbedField(
+                        name="Underdark Transport",
+                        value=(
+                            f"Following the winding tunnels, you find a passageway to the **{random_echannel.name}**"
+                            f" (<#{random_echannel.channel_id}>; added"
+                            f" {additional_table.biome} T{additional_table.tier} @ {weight:.0%}). After"
+                            " resolving the encounter, you may spend a travel token to exit here or to roll a new"
+                            " encounter and follow a different tunnel."
+                        ),
+                    )
+                )
+                # build new tier obj
+                encounters = tier_obj.encounters.copy()
+                for enc in additional_table.encounters:
+                    encounters.append(enc.model_copy(update={"weight": enc.weight * weight}))
+                tier_obj = Tier(
+                    biome=f"NLPUnderdark + {random_echannel.enc_table_name}",
+                    tier=tier,
+                    encounters=encounters,
+                )
 
         # choose a random encounter
         # alg derived from random.randchoices
@@ -104,9 +153,13 @@ class Encounters(commands.Cog):
         # send the message, with options for AI assist
         embed = disnake.Embed(
             title="Rolling for random encounter...",
-            description=f"**{biome} - Tier {tier}**\nRoll: {roll_result}\n\n{encounter_text}",
+            description=f"**{tier_obj.biome} - Tier {tier_obj.tier}**\nRoll: {roll_result}\n\n{encounter_text}",
             colour=disnake.Colour.random(),
         )
+
+        # add additional fields if necessary
+        for field in additional_embed_fields:
+            embed.add_field(**field, inline=False)
 
         # set up AI helper if in ic channel and matched monsters
         ai_helper = None
@@ -334,3 +387,27 @@ async def _edit_encchannel_message(
         if recreate_if_missing:
             new_message = await _send_encchannel_message(channel, encounter_channel)
             encounter_channel.pinned_message_id = new_message.id
+
+
+def _get_biome_tier(biome_name: str, tier: int, closest=False) -> Tier:
+    """Get the encounter table for the given tier and biome.
+    If the biome does not have the given tier and *closest* is True, choose the closest tier.
+    """
+    # get the biome
+    biome_tiers = [t for t in EncounterRepository.tiers if t.biome == biome_name]
+    if not biome_tiers:
+        raise NoValidTier(f"I couldn't find a biome named {biome_name!r}.")
+    # get the tier
+    tier_obj = next((t for t in biome_tiers if t.tier == tier), None)
+    if tier_obj is None:
+        if closest:
+            # or the closest if possible
+            tiers = sorted(biome_tiers, key=lambda t: abs(t.tier - tier))
+            tier_obj = tiers[0]
+        else:
+            available_tiers = ", ".join(str(t.tier) for t in biome_tiers)
+            raise NoValidTier(
+                f"I couldn't find an encounter table for {biome_name}, tier {tier} (available tiers:"
+                f" {available_tiers})."
+            )
+    return tier_obj
