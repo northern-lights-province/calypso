@@ -45,6 +45,7 @@ def run():
     print(f"ability min len (words): {min(lens_with_ability)}")
     print(f"ability max len (words): {max(lens_with_ability)}")
 
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     run()

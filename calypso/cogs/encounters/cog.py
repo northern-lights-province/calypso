@@ -301,13 +301,11 @@ async def _send_encchannel_message(channel: disnake.TextChannel, encounter_chann
         embed.set_image(encounter_channel.image_url)
     quoted_desc = "\n".join(f"> {line}" for line in encounter_channel.desc.strip().splitlines())
     message = await channel.send(
-        (
-            f"**__{encounter_channel.name}__**\n"
-            f"{quoted_desc}\n\n"
-            f"**Recommended Level**: {encounter_channel.recommended_level}\n"
-            f"**Table**: {encounter_channel.enc_table_name} (`/enc <tier>`)\n"
-            f"**Onward Travel**: {encounter_channel.onward_travel}"
-        ),
+        f"**__{encounter_channel.name}__**\n"
+        f"{quoted_desc}\n\n"
+        f"**Recommended Level**: {encounter_channel.recommended_level}\n"
+        f"**Table**: {encounter_channel.enc_table_name} (`/enc <tier>`)\n"
+        f"**Onward Travel**: {encounter_channel.onward_travel}",
         embed=embed,
     )
     await message.pin()
@@ -325,13 +323,11 @@ async def _edit_encchannel_message(
     quoted_desc = "\n".join(f"> {line}" for line in encounter_channel.desc.strip().splitlines())
     try:
         await msg.edit(
-            (
-                f"**__{encounter_channel.name}__**\n"
-                f"{quoted_desc}\n\n"
-                f"**Recommended Level**: {encounter_channel.recommended_level}\n"
-                f"**Table**: {encounter_channel.enc_table_name} (`/enc <tier>`)\n"
-                f"**Onward Travel**: {encounter_channel.onward_travel}"
-            ),
+            f"**__{encounter_channel.name}__**\n"
+            f"{quoted_desc}\n\n"
+            f"**Recommended Level**: {encounter_channel.recommended_level}\n"
+            f"**Table**: {encounter_channel.enc_table_name} (`/enc <tier>`)\n"
+            f"**Onward Travel**: {encounter_channel.onward_travel}",
             embed=embed,
         )
     except disnake.NotFound:
