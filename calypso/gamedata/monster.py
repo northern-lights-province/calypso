@@ -209,7 +209,7 @@ class Monster(BaseModel):
 
     @cached_property
     def name_re(self) -> re.Pattern:
-        return re.compile(rf"\b{re.escape(self.name)}", re.IGNORECASE)
+        return re.compile(rf"\b{re.escape(self.name)}")
 
     def get_senses_str(self):
         if self.senses:
