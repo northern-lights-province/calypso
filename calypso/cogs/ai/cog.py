@@ -11,6 +11,7 @@ from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
 from calypso.utils.prompts import chat_prompt
 from .aikani import AIKani
 from .engines import CHAT_HYPERPARAMS, chat_engine
+from .webutils import CHROME_UA
 
 
 class AIUtils(commands.Cog):
@@ -24,7 +25,9 @@ class AIUtils(commands.Cog):
 
     async def cog_load(self):
         self.playwright = await async_playwright().start()
-        self.browser = await self.playwright.chromium.launch(headless=True)
+        self.browser = await self.playwright.chromium.launch(
+            headless=True, channel="chrome", args=[f"--user-agent={CHROME_UA}"]
+        )
 
     @commands.slash_command(name="ai", description="AI utilities", guild_ids=[constants.GUILD_ID])
     async def ai(self, inter: disnake.ApplicationCommandInteraction):
