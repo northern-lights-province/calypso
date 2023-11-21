@@ -201,3 +201,25 @@ class AIFunctionCall(Base):
     arguments = Column(String, nullable=False)
 
     message = relationship("AIChatMessage")
+
+
+# ==== message logging ====
+class LoggedMessage(Base):
+    __tablename__ = "logged_messages"
+
+    id = Column(Integer, primary_key=True)
+    # ids
+    message_id = Column(BigInteger, nullable=False)
+    channel_id = Column(BigInteger, nullable=False)
+    guild_id = Column(BigInteger, nullable=True)
+    author_id = Column(BigInteger, nullable=False)
+    parent_id = Column(BigInteger, nullable=True)  # channel parent id if thread
+    # names
+    channel_name = Column(String, nullable=False)
+    parent_name = Column(String, nullable=True)  # channel parent name if thread
+    author_display_name = Column(String, nullable=False)
+    # content
+    content = Column(String, nullable=True)
+    clean_content = Column(String, nullable=True)
+    embeds_json = Column(String, nullable=True)
+    timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)

@@ -14,6 +14,7 @@ COGS = (
     "calypso.cogs.cgoals",
     "calypso.cogs.ai",
     "calypso.cogs.utils",
+    "calypso.cogs.msglog",
 )
 
 logging.basicConfig(level=logging.INFO)
