@@ -57,7 +57,7 @@ class AIUtils(commands.Cog):
 
         # build prompt and query GPT-3
         prompt = f"{monster}: {ability}\n{ability_text}\n###\n"
-        completion = await self.bot.openai.create_completion(
+        completion = await self.bot.openai_kani.create_completion(
             model=constants.ABILITY_AUTOMATION_MODEL,
             prompt=prompt,
             temperature=0.1,
@@ -111,7 +111,7 @@ class AIUtils(commands.Cog):
                 f"{monster}: {ability}. {ability_text}"
             ),
         ]
-        completion = await self.bot.openai.create_chat_completion(
+        completion = await self.bot.openai_kani.create_chat_completion(
             model="gpt-4-32k",
             messages=prompt,
             temperature=0.1,
@@ -173,7 +173,7 @@ class AIUtils(commands.Cog):
             and len(chatter.chat_history) >= 4
             and isinstance(message.channel, disnake.Thread)
         ):
-            completion = await self.bot.openai.create_chat_completion(
+            completion = await self.bot.openai_kani.create_chat_completion(
                 "gpt-4",
                 [
                     ChatMessage.user("Here is the start of a conversation:"),

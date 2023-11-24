@@ -273,7 +273,7 @@ class EncounterHelperController(disnake.ui.View):
 
         # load up a chatterbox
         chatter = EncKani(
-            engine=OpenAIEngine(client=interaction.bot.openai, **BRAINSTORM_HYPERPARAMS),
+            engine=OpenAIEngine(client=interaction.bot.openai_kani, **BRAINSTORM_HYPERPARAMS),
             system_prompt=(
                 "You are a creative D&D player and DM named Calypso.\n"
                 "Avoid mentioning game stats. You may use information from common sense, mythology, and culture."
