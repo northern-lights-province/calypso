@@ -1,6 +1,7 @@
 """
 Community goal management for the NLP. These commands can only be run in the NLP server.
 """
+
 import asyncio
 import datetime
 import itertools

@@ -1,6 +1,7 @@
 """
 Kick all members who have been in the server longer than one week unless they have any role in NO_PRUNE_IF.
 """
+
 import asyncio
 import datetime
 import os

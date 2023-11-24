@@ -2,6 +2,7 @@
 Helpers to extract mentioned monsters from rolled encounters and link them to gamedata entities.
 🍵
 """
+
 import logging
 from collections import namedtuple
 

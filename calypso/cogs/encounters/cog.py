@@ -1,6 +1,7 @@
 """
 Random encounter tables for the NLP. These commands can only be run in the NLP server.
 """
+
 import asyncio
 import random
 import re

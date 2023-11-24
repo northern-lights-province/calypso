@@ -1,6 +1,7 @@
 """
 Typing helpers.
 """
+
 from typing import TYPE_CHECKING, TypedDict, Union
 
 import disnake

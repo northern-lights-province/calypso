@@ -1,6 +1,7 @@
 """
 For each encounter in the random encounter tables, find the monster IDs associated with them.
 """
+
 import logging
 import pathlib
 import sys

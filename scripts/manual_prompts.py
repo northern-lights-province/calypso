@@ -1,6 +1,7 @@
 """
 Use this script to manually generate some prompts.
 """
+
 import pathlib
 import random
 import sys
