@@ -242,3 +242,42 @@ class AIUtils(commands.Cog):
         # begin chat
         self.chats[thread.id] = chatter
         await thread.add_user(inter.author)
+
+    # ==== dalle ====
+    @commands.slash_command(
+        name="dalle", description="Generate an image from a description.", guild_ids=[constants.GUILD_ID]
+    )
+    async def dalle(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        prompt: str = commands.Param(desc="The image description."),
+        aspect_ratio: str = commands.Param("square", choices=["square", "portrait", "landscape"]),
+        style: str = commands.Param("vivid", choices=["vivid", "natural"]),
+    ):
+        await inter.response.defer()
+
+        if aspect_ratio == "portrait":
+            size = "1024x1792"
+        elif aspect_ratio == "landscape":
+            size = "1792x1024"
+        else:
+            size = "1024x1024"
+
+        resp = await self.bot.openai.images.generate(
+            prompt=prompt,
+            model="dall-e-3",
+            n=1,
+            quality="hd",
+            response_format="url",
+            size=size,
+            style=style,
+            user=str(inter.author.id),
+        )
+        image = resp.data[0]
+
+        embed = disnake.Embed(colour=disnake.Colour.random())
+        embed.description = f"Prompt: {prompt}"
+        if image.revised_prompt:
+            embed.description += f"\n\nInterpreted as: {image.revised_prompt}"
+        embed.set_image(url=image.url)
+        await inter.send(embed=embed)
