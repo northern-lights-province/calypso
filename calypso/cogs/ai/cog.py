@@ -6,7 +6,7 @@ from disnake.ext import commands
 from kani import ChatMessage, ChatRole
 from playwright.async_api import async_playwright
 
-from calypso import Calypso, constants, db, models, utils
+from calypso import Calypso, config, constants, db, models, utils
 from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
 from calypso.utils.prompts import chat_prompt
 from .aikani import AIKani
@@ -272,6 +272,7 @@ class AIUtils(commands.Cog):
             size=size,
             style=style,
             user=str(inter.author.id),
+            extra_headers={"OpenAI-Organization": config.DALLE_ORG_ID} if config.DALLE_ORG_ID else None,
         )
         image = resp.data[0]
 
