@@ -1,5 +1,8 @@
 import asyncio
+import base64
+import io
 import json
+import re
 
 import disnake
 from disnake.ext import commands
@@ -263,22 +266,40 @@ class AIUtils(commands.Cog):
         else:
             size = "1024x1024"
 
+        # generate image and parse webp + metadata
         resp = await self.bot.openai.images.generate(
             prompt=prompt,
             model="dall-e-3",
             n=1,
             quality="hd",
-            response_format="url",
+            response_format="b64_json",
             size=size,
             style=style,
             user=str(inter.author.id),
             extra_headers={"OpenAI-Organization": config.DALLE_ORG_ID} if config.DALLE_ORG_ID else None,
         )
         image = resp.data[0]
+        data_bytes = base64.b64decode(image.b64_json)
+        data = io.BytesIO(data_bytes)
+        prompt_filename = re.sub(r"[^\w\d\-_]", "-", f"{inter.author.name}-{prompt}"[:64]) + ".webp"
 
-        embed = disnake.Embed(colour=disnake.Colour.random())
-        embed.description = f"Prompt: {prompt}"
+        # save to db
+        async with db.async_session() as session:
+            db_img = models.DalleImage(
+                author_id=inter.author.id,
+                model="dall-e-3",
+                prompt=prompt,
+                size=size,
+                style=style,
+                data=data_bytes,
+                filename=prompt_filename,
+                revised_prompt=image.revised_prompt,
+            )
+            session.add(db_img)
+            await session.commit()
+
+        # send
+        out = f"**Prompt**: {prompt}"
         if image.revised_prompt:
-            embed.description += f"\n\nInterpreted as: {image.revised_prompt}"
-        embed.set_image(url=image.url)
-        await inter.send(embed=embed)
+            out += f"\n\n**Interpreted as**: {image.revised_prompt}"
+        await inter.send(out, file=disnake.File(data, prompt_filename))

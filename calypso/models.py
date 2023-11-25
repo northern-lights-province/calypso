@@ -2,7 +2,7 @@ import datetime
 import re
 
 from kani import ChatRole
-from sqlalchemy import BigInteger, Column, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import BigInteger, Column, DateTime, Enum, ForeignKey, Integer, LargeBinary, String
 from sqlalchemy.orm import relationship
 
 from .db import Base
@@ -222,4 +222,21 @@ class LoggedMessage(Base):
     content = Column(String, nullable=True)
     clean_content = Column(String, nullable=True)
     embeds_json = Column(String, nullable=True)
+    timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+
+
+# ==== dalle ====
+class DalleImage(Base):
+    __tablename__ = "dalle_images"
+
+    id = Column(Integer, primary_key=True)
+    author_id = Column(BigInteger, nullable=False)
+    model = Column(String, nullable=False)
+    prompt = Column(String, nullable=False)
+    size = Column(String, nullable=False)
+    style = Column(String, nullable=False)
+
+    data = Column(LargeBinary, nullable=False)
+    filename = Column(String, nullable=False)
+    revised_prompt = Column(String, nullable=True)
     timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
