@@ -29,7 +29,7 @@ class AIUtils(commands.Cog):
     async def cog_load(self):
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
-            headless=True, channel="chrome", args=[f"--user-agent={CHROME_UA}"]
+            headless=True  # , channel="chrome", args=[f"--user-agent={CHROME_UA}"]
         )
 
     @commands.slash_command(name="ai", description="AI utilities", guild_ids=[constants.GUILD_ID])
@@ -125,7 +125,7 @@ class AIUtils(commands.Cog):
 
         # just print its response
         automation_chunks = chunk_text(
-            completion.text,
+            completion.message.text,
             max_chunk_size=1900,
             chunk_on=("\n",),
         )

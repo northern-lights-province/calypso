@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 # A standard Google Chrome user agent.
 CHROME_UA = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0"
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0"
     " Safari/537.36"
 )
 
