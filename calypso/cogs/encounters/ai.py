@@ -169,7 +169,7 @@ class EncounterHelperController(disnake.ui.View):
             prompt = summary_prompt_2(self.encounter, self.monsters)
 
         # noinspection PyUnresolvedReferences
-        completion = await interaction.bot.openai.create_completion(
+        completion = await interaction.bot.openai_kani.create_completion(
             prompt=prompt, user=str(interaction.author.id), **SUMMARY_HYPERPARAMS
         )
         summary = completion.text.strip()
