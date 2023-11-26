@@ -180,7 +180,7 @@ class AIUtils(commands.Cog):
                 "gpt-4",
                 [
                     ChatMessage.user("Here is the start of a conversation:"),
-                    *chatter.chat_history,
+                    *[m for m in chatter.chat_history if m.role in (ChatRole.USER, ChatRole.ASSISTANT)],
                     ChatMessage.user(
                         "Come up with a punchy title for this conversation.\n\nReply with your answer only and be"
                         " specific."
@@ -188,7 +188,7 @@ class AIUtils(commands.Cog):
                 ],
                 user=str(message.author.id),
             )
-            thread_title = completion.text.strip(' "')
+            thread_title = completion.message.text.strip(' "')
             async with db.async_session() as session:
                 db_chat = await session.get(models.AIOpenEndedChat, chatter.chat_session_id)
                 chatter.chat_title = thread_title
