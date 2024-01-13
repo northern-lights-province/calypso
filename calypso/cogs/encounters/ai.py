@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from calypso.cogs.weather.cog import Weather
 
 SUMMARY_HYPERPARAMS = dict(
-    model="text-davinci-003",
+    model="gpt-3.5-turbo-instruct",
     temperature=0.8,
     max_tokens=256,
     top_p=0.95,
