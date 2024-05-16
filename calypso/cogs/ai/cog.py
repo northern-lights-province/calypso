@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import io
 import json
@@ -6,15 +5,14 @@ import re
 
 import disnake
 from disnake.ext import commands
-from kani import ChatMessage, ChatRole
+from kani import ChatMessage, ChatRole, Kani
 from playwright.async_api import async_playwright
 
-from calypso import Calypso, config, constants, db, models, utils
-from calypso.utils.functions import chunk_text, multiline_modal, send_chunked
+from calypso import Calypso, config, constants, db, models
+from calypso.utils.functions import send_chunked
 from calypso.utils.prompts import chat_prompt
 from .aikani import AIKani
-from .engines import CHAT_HYPERPARAMS, chat_engine
-from .webutils import CHROME_UA
+from .engines import CHAT_HYPERPARAMS, chat_engine, gpt_4o_engine
 
 
 class AIUtils(commands.Cog):
@@ -37,100 +35,100 @@ class AIUtils(commands.Cog):
         pass
 
     # ==== text2auto ====
-    @ai.sub_command_group(name="text2auto")
-    async def ai_text2auto(self, inter: disnake.ApplicationCommandInteraction):
-        pass
+    # @ai.sub_command_group(name="text2auto")
+    # async def ai_text2auto(self, inter: disnake.ApplicationCommandInteraction):
+    #     pass
+    #
+    # @ai_text2auto.sub_command(name="monster", description="Generate automation for a monster's ability (2 steps).")
+    # async def ai_text2auto_monster(
+    #     self,
+    #     inter: disnake.ApplicationCommandInteraction,
+    #     monster: str = commands.Param(desc="The name of the monster."),
+    #     ability: str = commands.Param(desc="The name of the ability."),
+    #     critterdb_format: bool = commands.Param(True, desc="Whether to return CritterDB override syntax."),
+    # ):
+    #     try:
+    #         modal_inter, ability_text = await multiline_modal(
+    #             inter, title=f"{monster}: {ability}", label="Paste the ability's full description", timeout=600
+    #         )
+    #     except asyncio.TimeoutError:
+    #         return
+    #     await modal_inter.send(f"Generating Avrae automation for {monster}: {ability}```\n{ability_text}\n```")
+    #     await modal_inter.channel.trigger_typing()
+    #
+    #     # build prompt and query GPT-3
+    #     prompt = f"{monster}: {ability}\n{ability_text}\n###\n"
+    #     completion = await self.bot.openai_kani.create_completion(
+    #         model=constants.ABILITY_AUTOMATION_MODEL,
+    #         prompt=prompt,
+    #         temperature=0.1,
+    #         max_tokens=1024,
+    #         stop=["\n^^^"],
+    #         top_p=0.95,
+    #         user=str(inter.author.id),
+    #     )
+    #     automation = completion.text.strip()
+    #     if automation == "meta: No automation":
+    #         automation_chunks = ["No automation was generated. Perhaps this ability doesn't need automation."]
+    #     elif critterdb_format:
+    #         automation_chunks = chunk_text(
+    #             f"<avrae hidden>\nname: {ability}\n_v: 2\nautomation:\n{automation}\n</avrae>",
+    #             max_chunk_size=1900,
+    #             chunk_on=("\n",),
+    #         )
+    #     else:
+    #         automation_chunks = chunk_text(automation, max_chunk_size=1900, chunk_on=("\n",))
+    #
+    #     for chunk in automation_chunks:
+    #         await modal_inter.channel.send(f"```yaml\n{chunk}\n```")
 
-    @ai_text2auto.sub_command(name="monster", description="Generate automation for a monster's ability (2 steps).")
-    async def ai_text2auto_monster(
-        self,
-        inter: disnake.ApplicationCommandInteraction,
-        monster: str = commands.Param(desc="The name of the monster."),
-        ability: str = commands.Param(desc="The name of the ability."),
-        critterdb_format: bool = commands.Param(True, desc="Whether to return CritterDB override syntax."),
-    ):
-        try:
-            modal_inter, ability_text = await multiline_modal(
-                inter, title=f"{monster}: {ability}", label="Paste the ability's full description", timeout=600
-            )
-        except asyncio.TimeoutError:
-            return
-        await modal_inter.send(f"Generating Avrae automation for {monster}: {ability}```\n{ability_text}\n```")
-        await modal_inter.channel.trigger_typing()
-
-        # build prompt and query GPT-3
-        prompt = f"{monster}: {ability}\n{ability_text}\n###\n"
-        completion = await self.bot.openai_kani.create_completion(
-            model=constants.ABILITY_AUTOMATION_MODEL,
-            prompt=prompt,
-            temperature=0.1,
-            max_tokens=1024,
-            stop=["\n^^^"],
-            top_p=0.95,
-            user=str(inter.author.id),
-        )
-        automation = completion.text.strip()
-        if automation == "meta: No automation":
-            automation_chunks = ["No automation was generated. Perhaps this ability doesn't need automation."]
-        elif critterdb_format:
-            automation_chunks = chunk_text(
-                f"<avrae hidden>\nname: {ability}\n_v: 2\nautomation:\n{automation}\n</avrae>",
-                max_chunk_size=1900,
-                chunk_on=("\n",),
-            )
-        else:
-            automation_chunks = chunk_text(automation, max_chunk_size=1900, chunk_on=("\n",))
-
-        for chunk in automation_chunks:
-            await modal_inter.channel.send(f"```yaml\n{chunk}\n```")
-
-    @ai_text2auto.sub_command(
-        name="monster-32k", description="Generate automation for a monster's ability using GPT-4 32k."
-    )
-    async def ai_text2auto_monster_gpt4_32k(
-        self,
-        inter: disnake.ApplicationCommandInteraction,
-        monster: str = commands.Param(desc="The name of the monster."),
-        ability: str = commands.Param(desc="The name of the ability."),
-    ):
-        try:
-            modal_inter, ability_text = await multiline_modal(
-                inter, title=f"{monster}: {ability}", label="Paste the ability's full description", timeout=600
-            )
-        except asyncio.TimeoutError:
-            return
-        await modal_inter.send(f"Generating Avrae automation for {monster}: {ability}```\n{ability_text}\n```")
-        await modal_inter.channel.trigger_typing()
-
-        # build prompt and query GPT-4
-        avrae_docs = (utils.REPO_ROOT / "data" / "automation_ref.rst").read_text()
-        prompt = [
-            ChatMessage.system("You are a D&D player writing game automation for new monsters."),
-            ChatMessage.user(
-                "Here is the documentation for the automation language, written in ReStructuredText format:\n"
-                f"{avrae_docs}\n\n"
-                "Please write automation in JSON format for the following ability. Your"
-                " output should be an AttackModel.\n\n"
-                f"{monster}: {ability}. {ability_text}"
-            ),
-        ]
-        completion = await self.bot.openai_kani.create_chat_completion(
-            model="gpt-4-32k",
-            messages=prompt,
-            temperature=0.1,
-            max_tokens=1024,
-            top_p=0.95,
-            user=str(inter.author.id),
-        )
-
-        # just print its response
-        automation_chunks = chunk_text(
-            completion.message.text,
-            max_chunk_size=1900,
-            chunk_on=("\n",),
-        )
-        for chunk in automation_chunks:
-            await modal_inter.channel.send(chunk)
+    # @ai_text2auto.sub_command(
+    #     name="monster-32k", description="Generate automation for a monster's ability using GPT-4 32k."
+    # )
+    # async def ai_text2auto_monster_gpt4_32k(
+    #     self,
+    #     inter: disnake.ApplicationCommandInteraction,
+    #     monster: str = commands.Param(desc="The name of the monster."),
+    #     ability: str = commands.Param(desc="The name of the ability."),
+    # ):
+    #     try:
+    #         modal_inter, ability_text = await multiline_modal(
+    #             inter, title=f"{monster}: {ability}", label="Paste the ability's full description", timeout=600
+    #         )
+    #     except asyncio.TimeoutError:
+    #         return
+    #     await modal_inter.send(f"Generating Avrae automation for {monster}: {ability}```\n{ability_text}\n```")
+    #     await modal_inter.channel.trigger_typing()
+    #
+    #     # build prompt and query GPT-4
+    #     avrae_docs = (utils.REPO_ROOT / "data" / "automation_ref.rst").read_text()
+    #     prompt = [
+    #         ChatMessage.system("You are a D&D player writing game automation for new monsters."),
+    #         ChatMessage.user(
+    #             "Here is the documentation for the automation language, written in ReStructuredText format:\n"
+    #             f"{avrae_docs}\n\n"
+    #             "Please write automation in JSON format for the following ability. Your"
+    #             " output should be an AttackModel.\n\n"
+    #             f"{monster}: {ability}. {ability_text}"
+    #         ),
+    #     ]
+    #     completion = await self.bot.openai_kani.create_chat_completion(
+    #         model="gpt-4-32k",
+    #         messages=prompt,
+    #         temperature=0.1,
+    #         max_tokens=1024,
+    #         top_p=0.95,
+    #         user=str(inter.author.id),
+    #     )
+    #
+    #     # just print its response
+    #     automation_chunks = chunk_text(
+    #         completion.message.text,
+    #         max_chunk_size=1900,
+    #         chunk_on=("\n",),
+    #     )
+    #     for chunk in automation_chunks:
+    #         await modal_inter.channel.send(chunk)
 
     # === chatgpt ===
     @commands.Cog.listener()
@@ -176,19 +174,18 @@ class AIUtils(commands.Cog):
             and len(chatter.chat_history) >= 4
             and isinstance(message.channel, disnake.Thread)
         ):
-            completion = await self.bot.openai_kani.create_chat_completion(
-                "gpt-4",
-                [
+            title_kani = Kani(
+                chat_engine,
+                chat_history=[
                     ChatMessage.user("Here is the start of a conversation:"),
                     *[m for m in chatter.chat_history if m.role in (ChatRole.USER, ChatRole.ASSISTANT)],
-                    ChatMessage.user(
-                        "Come up with a punchy title for this conversation.\n\nReply with your answer only and be"
-                        " specific."
-                    ),
                 ],
+            )
+            title_cmpl = await title_kani.chat_round_str(
+                "Come up with a punchy title for this conversation.\n\nReply with your answer only and be specific.",
                 user=str(message.author.id),
             )
-            thread_title = completion.message.text.strip(' "')
+            thread_title = title_cmpl.strip(' "')
             async with db.async_session() as session:
                 db_chat = await session.get(models.AIOpenEndedChat, chatter.chat_session_id)
                 chatter.chat_title = thread_title
@@ -202,7 +199,11 @@ class AIUtils(commands.Cog):
             del self.chats[after.id]
 
     @ai.sub_command(name="chat", description="Chat with Calypso (experimental).")
-    async def ai_chat(self, inter: disnake.ApplicationCommandInteraction):
+    async def ai_chat(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        model: str = commands.Param("gpt-4", choices=["gpt-4", "gpt-4o"]),
+    ):
         # can only chat in OOC/staff category or ooc channel
         if not isinstance(inter.channel, disnake.TextChannel) and (
             inter.channel.category_id in (1031055347818971196, 1031651537543499827) or "ooc" in inter.channel.name
@@ -210,6 +211,8 @@ class AIUtils(commands.Cog):
             await inter.send("Chatting with Calypso is not allowed in this channel.")
             return
         await inter.response.defer()
+
+        engine = gpt_4o_engine if model == "gpt-4o" else chat_engine
 
         # create thread, init chatter
         await inter.send("Making a thread now!")
@@ -220,7 +223,7 @@ class AIUtils(commands.Cog):
             bot=self.bot,
             channel_id=thread.id,
             browser=self.browser,
-            engine=chat_engine,
+            engine=engine,
             system_prompt=(
                 "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as Calypso, a"
                 " faerie from the Feywild. The user has already been introduced to you.\nEach reply should consist of"

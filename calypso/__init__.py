@@ -1,7 +1,5 @@
-import aiohttp
 import disnake
 from disnake.ext import commands
-from kani.engines.openai import OpenAIClient
 from openai import AsyncOpenAI
 
 from . import config
@@ -10,12 +8,10 @@ from . import config
 class Calypso(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.openai_kani = OpenAIClient(api_key=config.OPENAI_API_KEY, http=aiohttp.ClientSession(loop=self.loop))
         self.openai = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
         self.enc_chatterboxes = dict()
 
     async def close(self):
-        await self.openai_kani.close()
         await self.openai.close()
         await super().close()
 
