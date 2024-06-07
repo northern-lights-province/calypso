@@ -302,7 +302,7 @@ class AIUtils(commands.Cog):
             await session.commit()
 
         # send
-        out = f"**Prompt**: {prompt}"
+        out = f"**Prompt**: {prompt[:800]}"
         if image.revised_prompt:
-            out += f"\n\n**Interpreted as**: {image.revised_prompt}"
+            out += f"\n\n**Interpreted as**: {image.revised_prompt[:800]}"
         await inter.send(out, file=disnake.File(data, prompt_filename))
