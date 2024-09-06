@@ -6,7 +6,6 @@ import re
 import disnake
 from disnake.ext import commands
 from kani import ChatMessage, ChatRole, Kani
-from playwright.async_api import async_playwright
 
 from calypso import Calypso, config, constants, db, models
 from calypso.utils.functions import send_chunked
@@ -21,14 +20,6 @@ class AIUtils(commands.Cog):
     def __init__(self, bot):
         self.bot: Calypso = bot
         self.chats: dict[int, AIKani] = {}
-        self.playwright = None
-        self.browser = None
-
-    async def cog_load(self):
-        self.playwright = await async_playwright().start()
-        self.browser = await self.playwright.chromium.launch(
-            headless=True  # , channel="chrome", args=[f"--user-agent={CHROME_UA}"]
-        )
 
     @commands.slash_command(name="ai", description="AI utilities", guild_ids=[constants.GUILD_ID])
     async def ai(self, inter: disnake.ApplicationCommandInteraction):
@@ -222,7 +213,6 @@ class AIUtils(commands.Cog):
         chatter = AIKani(
             bot=self.bot,
             channel_id=thread.id,
-            browser=self.browser,
             engine=engine,
             system_prompt=(
                 "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as Calypso, a"

@@ -134,8 +134,8 @@ class EncounterHelperController(disnake.ui.View):
             row=1,
         )
         # buttons in initial state
-        if monsters:
-            self.add_item(self._b_generate_summary)
+        # if monsters:
+        #     self.add_item(self._b_generate_summary)
         self.add_item(self._b_brainstorm_thread)
 
     # ==== d.py overrides and helpers ====
