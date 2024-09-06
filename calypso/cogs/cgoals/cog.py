@@ -31,6 +31,10 @@ CG_COMPLETE_COLOR = disnake.Colour(0x88AED0)
 CG_GVAR_ID = "8c8046fd-5775-49b0-b0ab-1893da5dde5e"
 CG_WORKSHOP_ID = "6379515f16eb2e36c2591716"
 
+# soft cap config
+CG_INDIVIDUAL_LIMIT_PROPORTION = 0.2  # any contributions over 20% of a CG...
+CG_INDIVIDUAL_LIMIT_SCALING = 2  # ...get divided by this amount
+
 
 class CommunityGoals(commands.Cog):
     def __init__(self, bot):
@@ -100,20 +104,44 @@ class CommunityGoals(commands.Cog):
         amt_cp = int(qs["amtcp"][0])
         slug = qs["slug"][0]
         async with db.async_session() as session:
-            cg = await queries.get_cg_by_slug(session, slug)
+            cg = await queries.get_cg_by_slug(session, slug, load_contributions=True)
+            # any contributions after 20% of the max amount is halved
+            player_contributions_cp = sum(c.amount_cp for c in cg.contributions if c.user_id == signature.author_id)
+            cg_single_limit = int(cg.cost_cp * CG_INDIVIDUAL_LIMIT_PROPORTION)
+            player_contribution_limit = max(cg_single_limit - player_contributions_cp, 0)
+
+            if amt_cp > player_contribution_limit:
+                amt_cp_scaled = (
+                    player_contribution_limit + (amt_cp - player_contribution_limit) // CG_INDIVIDUAL_LIMIT_SCALING
+                )
+            else:
+                amt_cp_scaled = amt_cp
+
+            # log the funding
             funding_before = cg.funded_cp
-            cg.funded_cp += amt_cp
+            cg.funded_cp += amt_cp_scaled
             contribution = models.CommunityGoalContribution(
                 goal_id=cg.id,
                 user_id=signature.author_id,
-                amount_cp=amt_cp,
+                amount_cp=amt_cp_scaled,
                 timestamp=datetime.datetime.utcfromtimestamp(signature.timestamp),
             )
             session.add(contribution)
             await session.commit()
+
+        # update the CG message
         await self._edit_cg_message(cg)
         await self._update_avrae_gvar()
         await message.add_reaction("\u2705")  # green check mark
+
+        # if we have capped the contribution, notify the user
+        if amt_cp_scaled < amt_cp:
+            await message.channel.send(
+                "The city prefers not to have a single adventurer with more than a 20% stake in this CG (limit:"
+                f" {cg_single_limit / 100:.2f} gp). Any contribution over a 20% stake was halved (last contribution:"
+                f" {amt_cp_scaled / 100:.2f} gp).",
+                delete_after=60,
+            )
 
         # if the cg is now 50%, 80%, or fully funded, notify the staff
         is_server_cg = cg.log_channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID or cg.log_channel_id is None
