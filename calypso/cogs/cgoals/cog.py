@@ -105,12 +105,14 @@ class CommunityGoals(commands.Cog):
         slug = qs["slug"][0]
         async with db.async_session() as session:
             cg = await queries.get_cg_by_slug(session, slug, load_contributions=True)
-            # any contributions after 20% of the max amount is halved
+            is_server_cg = cg.log_channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID or cg.log_channel_id is None
+
+            # any contributions to server CGs after 20% of the max amount is halved
             player_contributions_cp = sum(c.amount_cp for c in cg.contributions if c.user_id == signature.author_id)
             cg_single_limit = int(cg.cost_cp * CG_INDIVIDUAL_LIMIT_PROPORTION)
             player_contribution_limit = max(cg_single_limit - player_contributions_cp, 0)
 
-            if amt_cp > player_contribution_limit:
+            if is_server_cg and amt_cp > player_contribution_limit:
                 amt_cp_scaled = (
                     player_contribution_limit + (amt_cp - player_contribution_limit) // CG_INDIVIDUAL_LIMIT_SCALING
                 )
@@ -144,7 +146,6 @@ class CommunityGoals(commands.Cog):
             )
 
         # if the cg is now 50%, 80%, or fully funded, notify the staff
-        is_server_cg = cg.log_channel_id == constants.COMMUNITY_GOAL_CHANNEL_ID or cg.log_channel_id is None
         if is_server_cg:
             # only ping for CGs in the global CG channel
             mention = f"<@&{constants.STAFF_ROLE_ID}>"
