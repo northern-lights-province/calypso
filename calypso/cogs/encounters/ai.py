@@ -133,10 +133,19 @@ class EncounterHelperController(disnake.ui.View):
             style=disnake.ButtonStyle.primary,
             row=1,
         )
+        # send to DMs
+        self._b_copy_to_dms = ButtonWithCallback(
+            self.echo_dms,
+            label="PM me a copy",
+            emoji="\U0001f4e5",  # :inbox_tray:
+            style=disnake.ButtonStyle.success,
+            row=1,
+        )
         # buttons in initial state
         # if monsters:
         #     self.add_item(self._b_generate_summary)
         self.add_item(self._b_brainstorm_thread)
+        self.add_item(self._b_copy_to_dms)
 
     # ==== d.py overrides and helpers ====
     async def interaction_check(self, interaction: disnake.Interaction) -> bool:
@@ -319,6 +328,11 @@ class EncounterHelperController(disnake.ui.View):
             f"<@{self.encounter.author_id}> opened a brainstorming thread with Calypso: {thread.mention}",
             allowed_mentions=disnake.AllowedMentions.none(),
         )
+
+    # ==== echo ====
+    async def echo_dms(self, _: disnake.ui.Button, interaction: utils.typing.Interaction):
+        await interaction.user.send(embed=self.embed)
+        await interaction.send("I sent a copy of the encounter to your PMs!", ephemeral=True)
 
 
 # ==== feedback ====
