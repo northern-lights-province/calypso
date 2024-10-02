@@ -33,7 +33,7 @@ class MessageLog(commands.Cog):
                 guild_id=guild_id,
                 author_id=message.author.id,
                 # names
-                channel_name=message.channel.name,
+                channel_name=str(message.channel),
                 author_display_name=message.author.display_name,
                 # content
                 content=message.content,
