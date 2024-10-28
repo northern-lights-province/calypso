@@ -49,7 +49,7 @@ class Encounters(commands.Cog):
     async def enc(
         self,
         inter: disnake.ApplicationCommandInteraction,
-        tier: int = commands.Param(gt=0, desc="The encounter tier to roll."),
+        tier: str = commands.Param(desc="The encounter tier to roll."),
         biome: str = biome_param(None, desc="The biome to roll an encounter in (disables AI assist features)."),
         private: bool = commands.Param(True, desc="Whether to send the result as a private message or not."),
     ):
@@ -69,11 +69,22 @@ class Encounters(commands.Cog):
         else:
             echannel = None
 
-        # find the biome and tier
+        # parse tiers
         try:
-            tier_obj = _get_biome_tier(biome, tier)
-        except NoValidTier as e:
-            return await inter.send(e.msg, ephemeral=private)
+            tiers = [int(t.strip()) for t in tier.split(",")]
+        except ValueError:
+            return await inter.send(
+                "Invalid tier - expected a number or a comma-separated list of numbers.", ephemeral=private
+            )
+
+        # create the tier obj
+        tier_objs = []
+        for tier in tiers:
+            try:
+                tier_objs.append(_get_biome_tier(biome, tier))
+            except NoValidTier as e:
+                return await inter.send(e.msg, ephemeral=private)
+        tier_obj = _merge_tiers(*tier_objs)
 
         # if we are in the underdark, also choose a random biome
         additional_embed_fields: list[EmbedField] = []
@@ -95,28 +106,30 @@ class Encounters(commands.Cog):
                 )
             # otherwise, build a new tier obj with the closest tier
             else:
-                additional_table = _get_biome_tier(random_echannel.enc_table_name, tier, closest=True)
-                weight = 0.5 if additional_table.tier == tier else 0.1
+                additional_tables = []
+                for tier in tiers:
+                    additional_table = _get_biome_tier(random_echannel.enc_table_name, tier, closest=True)
+                    weight = 0.5 if additional_table.tier == tier else 0.1
+                    additional_tables.append((additional_table, weight))
+                weights = "; ".join(
+                    f"T{additional_table.tier} @ {weight:.0%}" for additional_table, weight in additional_tables
+                )
                 additional_embed_fields.append(
                     EmbedField(
                         name="Underdark Transport",
                         value=(
                             f"Following the winding tunnels, you find a passageway to the **{random_echannel.name}**"
-                            f" (<#{random_echannel.channel_id}>; added"
-                            f" {additional_table.biome} T{additional_table.tier} @ {weight:.0%}). After"
-                            " resolving the encounter, you may spend a travel token to exit here or to roll a new"
-                            " encounter and follow a different tunnel."
+                            f" (<#{random_echannel.channel_id}>; added {random_echannel.enc_table_name} {weights})."
+                            " After resolving the encounter, you may spend a travel token to exit here or to roll a"
+                            " new encounter and follow a different tunnel."
                         ),
                     )
                 )
                 # build new tier obj
-                encounters = tier_obj.encounters.copy()
-                for enc in additional_table.encounters:
-                    encounters.append(enc.model_copy(update={"weight": enc.weight * weight}))
-                tier_obj = Tier(
-                    biome=f"NLPUnderdark + {random_echannel.enc_table_name}",
-                    tier=tier,
-                    encounters=encounters,
+                tier_obj = _merge_tiers_weighted(
+                    (tier_obj, 1),
+                    *((additional_table, weight) for additional_table, weight in additional_tables),
+                    name=f"NLPUnderdark + {random_echannel.enc_table_name}",
                 )
 
         # choose a random encounter
@@ -137,12 +150,13 @@ class Encounters(commands.Cog):
         encounter_text = re.sub(r"\{(.+?)}", lambda match: d20.roll(match.group(1)).result, encounter_text)
 
         # save the encounter to db
+        tiers_str = ", ".join(map(str, tiers))
         async with db.async_session() as session:
             rolled_encounter = models.RolledEncounter(
                 channel_id=inter.channel_id,
                 author_id=inter.author.id,
                 table_name=biome,
-                tier=tier,
+                tier=tiers_str,
                 rendered_text=encounter_text,
                 monster_ids=",".join(map(str, (m.id for m, _ in referenced_monsters))),
                 biome_name=echannel.name if echannel else None,
@@ -154,7 +168,7 @@ class Encounters(commands.Cog):
         # send the message, with options for AI assist
         embed = disnake.Embed(
             title="Rolling for random encounter...",
-            description=f"**{tier_obj.biome} - Tier {tier_obj.tier}**\nRoll: {roll_result}\n\n{encounter_text}",
+            description=f"**{tier_obj.biome} - Tier {tiers_str}**\nRoll: {roll_result}\n\n{encounter_text}",
             colour=disnake.Colour.random(),
         )
 
@@ -412,3 +426,30 @@ def _get_biome_tier(biome_name: str, tier: int, closest=False) -> Tier:
                 f" {available_tiers})."
             )
     return tier_obj
+
+
+def _merge_tiers_weighted(*pairs: tuple[Tier, float], name=None, tier=None):
+    if len(pairs) == 1:
+        return pairs[0][0]
+
+    encounters = []
+    names = []
+    tiers = []
+    for table, weight in pairs:
+        if table.biome not in names:
+            names.append(table.biome)
+        if table.tier not in tiers:
+            tiers.append(table.tier)
+
+        for enc in table.encounters:
+            encounters.append(enc.model_copy(update={"weight": enc.weight * weight}))
+
+    if name is None:
+        name = " + ".join(names)
+    if tier is None:
+        tier = max(tiers)
+    return Tier(biome=name, tier=tier, encounters=encounters)
+
+
+def _merge_tiers(*tiers: Tier, **kwargs):
+    return _merge_tiers_weighted(*((tier, 1) for tier in tiers), **kwargs)

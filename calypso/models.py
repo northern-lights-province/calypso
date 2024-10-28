@@ -106,7 +106,7 @@ class RolledEncounter(Base):
     author_id = Column(BigInteger, nullable=False)
     timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
     table_name = Column(String, nullable=False)
-    tier = Column(Integer, nullable=False)
+    tier = Column(String, nullable=False)
     rendered_text = Column(String, nullable=False)
     monster_ids = Column(String, nullable=True)  # comma-separated list of ids (ints)
     biome_name = Column(String, nullable=True)
