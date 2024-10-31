@@ -36,6 +36,7 @@ class Weather(commands.Cog):
             if biome is None:
                 await inter.send("This channel is not linked to a biome", ephemeral=True)
                 return
+        await inter.response.defer()
         biome_weather = await self.client.get_current_weather_by_city_id(biome.city_id)
         await inter.send(embed=utils.weather_embed(biome, biome_weather))
 

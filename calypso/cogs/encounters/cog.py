@@ -53,6 +53,7 @@ class Encounters(commands.Cog):
         biome: str = biome_param(None, desc="The biome to roll an encounter in (disables AI assist features)."),
         private: bool = commands.Param(True, desc="Whether to send the result as a private message or not."),
     ):
+        await inter.response.defer(ephemeral=private)
         # get biome from channel link
         if biome is None:
             channel_id = inter.channel_id
