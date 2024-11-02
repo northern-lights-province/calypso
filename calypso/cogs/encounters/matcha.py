@@ -64,11 +64,11 @@ def find_potential_matches(query: str) -> list[MonsterMatch]:
     """
     matches = []
     for monster in gamedata.GamedataRepository.monsters:
-        if monster.is_legacy:
-            continue
+        # if monster.is_legacy:
+        #     continue
         mon_matches = []
         for mon_match in monster.name_re.finditer(query):
             mon_matches.append(mon_match.start())
         if mon_matches:
             matches.append(MonsterMatch(monster, mon_matches))
-    return sorted(matches, key=lambda pair: len(pair[0].name), reverse=True)
+    return sorted(matches, key=lambda pair: (len(pair[0].name), not pair[0].is_legacy), reverse=True)
