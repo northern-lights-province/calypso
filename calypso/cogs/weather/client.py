@@ -43,7 +43,7 @@ class CurrentWeather(BaseModel):
     weather: List[_WeatherDetail]
     base: str
     main: _WeatherMain
-    visibility: int
+    visibility: Optional[int] = None
     wind: _WeatherWind
     clouds: Dict[str, int]
     dt: datetime.datetime

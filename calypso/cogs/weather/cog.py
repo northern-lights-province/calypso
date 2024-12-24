@@ -10,6 +10,7 @@ from . import utils
 from .city import CityRepository
 from .client import WeatherClient
 from .params import biome_param, city_param
+from calypso.utils import send_chunked
 
 
 class Weather(commands.Cog):
@@ -118,6 +119,7 @@ class Weather(commands.Cog):
         if not biomes:
             await inter.send("This server has no biomes. Make some with `/weatheradmin biome create`.")
             return
+
         out = []
         for biome in biomes:
             biome_city = CityRepository.get_city(biome.city_id)
@@ -128,7 +130,8 @@ class Weather(commands.Cog):
             else:
                 out.append("No linked channels")
             out.append("")
-        await inter.send("\n".join(out))
+
+        await send_chunked(inter, "\n".join(out))
 
     @weatheradmin_biome.sub_command(name="create", description="Create a new biome")
     async def weatheradmin_biome_create(

@@ -115,6 +115,12 @@ def weather_desc(weather: CurrentWeather) -> str:
     else:
         wind_direction = "northwest"
 
+    if not weather.visibility:
+        return (
+            f"The wind is {wind_desc}, at {int(ms_to_mph(weather.wind.speed))} mph towards the {wind_direction}. "
+            f"The humiditity is {weather.main.humidity}%."
+        )
+
     # visibility
     visibility_ft = m_to_ft(weather.visibility)
     if visibility_ft > 5280:
