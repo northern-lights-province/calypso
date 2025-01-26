@@ -193,7 +193,6 @@ class AIUtils(commands.Cog):
     async def ai_chat(
         self,
         inter: disnake.ApplicationCommandInteraction,
-        model: str = commands.Param("gpt-4", choices=["gpt-4", "gpt-4o"]),
     ):
         # can only chat in OOC/staff category or ooc channel
         if not isinstance(inter.channel, disnake.TextChannel) and (
@@ -203,8 +202,6 @@ class AIUtils(commands.Cog):
             return
         await inter.response.defer()
 
-        engine = gpt_4o_engine if model == "gpt-4o" else chat_engine
-
         # create thread, init chatter
         await inter.send("Making a thread now!")
         thread = await inter.channel.create_thread(
@@ -213,7 +210,7 @@ class AIUtils(commands.Cog):
         chatter = AIKani(
             bot=self.bot,
             channel_id=thread.id,
-            engine=engine,
+            engine=chat_engine,
             system_prompt=(
                 "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as Calypso, a"
                 " faerie from the Feywild. The user has already been introduced to you.\nEach reply should consist of"
@@ -241,7 +238,10 @@ class AIUtils(commands.Cog):
 
     # ==== dalle ====
     @commands.slash_command(
-        name="dalle", description="Generate an image from a description.", guild_ids=[constants.GUILD_ID]
+        name="dalle",
+        description="Generate an image from a description.",
+        guild_ids=[constants.GUILD_ID],
+        dm_permission=True,
     )
     async def dalle(
         self,
