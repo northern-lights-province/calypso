@@ -11,7 +11,7 @@ from calypso import Calypso, config, constants, db, models
 from calypso.utils.functions import send_chunked
 from calypso.utils.prompts import chat_prompt
 from .aikani import AIKani
-from .engines import CHAT_HYPERPARAMS, chat_engine, gpt_4o_engine
+from .engines import CHAT_4O_HYPERPARAMS, chat_engine
 
 
 class AIUtils(commands.Cog):
@@ -225,7 +225,7 @@ class AIUtils(commands.Cog):
                 channel_id=inter.channel_id,
                 author_id=inter.author.id,
                 prompt=json.dumps([m.model_dump(mode="json", exclude_none=True) for m in await chatter.get_prompt()]),
-                hyperparams=json.dumps(CHAT_HYPERPARAMS),
+                hyperparams=json.dumps(CHAT_4O_HYPERPARAMS),
                 thread_id=thread.id,
             )
             session.add(brainstorm)
