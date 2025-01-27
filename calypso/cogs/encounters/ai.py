@@ -25,10 +25,10 @@ SUMMARY_HYPERPARAMS = dict(
     frequency_penalty=0.5,
 )
 BRAINSTORM_HYPERPARAMS = dict(
-    model="gpt-4",
+    model="gpt-4o",
     temperature=1,
     top_p=0.95,
-    frequency_penalty=0.3,
+    frequency_penalty=0.1,
 )
 
 log = logging.getLogger(__name__)
