@@ -42,9 +42,14 @@ def extract_monsters(text) -> list[MonsterMatch]:
 
         log.debug(f"\tNext iteration: {text!r}")
         # remove the matches that no longer match
-        for match in reversed(potential_matches):
-            if match.match.start() == re_match.start() and not match.monster.name_re.match(text, re_match.start()):
-                potential_matches.remove(match)
+        for other_match in reversed(potential_matches):
+            # if it overlaps, check if it still matches
+            # we only need to check for contain since they are in descending length
+            if (
+                re_match.start() <= other_match.match.start() <= re_match.end()
+                or re_match.start() <= other_match.match.end() <= re_match.end()
+            ) and not other_match.monster.name_re.match(text, re_match.start()):
+                potential_matches.remove(other_match)
 
     return matches
 
@@ -66,7 +71,8 @@ def find_potential_matches(query: str) -> list[MonsterMatch]:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     gamedata.GamedataRepository.reload()
-    test_str = "an Ancient Red Dragon (2014) and an Ancient Red Dragon (2024) and 3 Skeletons and a Dire Wolf (2024)"
+    # test_str = "an Ancient Red Dragon (2014) and an Ancient Red Dragon (2024) and 3 Skeletons and a Dire Wolf (2024)"
+    test_str = "{1d4} Snowy Owlbear"
     referenced_monsters = extract_monsters(test_str)
     for mon, match in sorted(referenced_monsters, key=lambda p: p[1].start(), reverse=True):
         test_str = test_str[: match.start()] + f"[{match[0]}]({mon.url})" + test_str[match.end() :]
