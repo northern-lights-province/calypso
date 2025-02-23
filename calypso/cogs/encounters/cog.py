@@ -145,10 +145,12 @@ class Encounters(commands.Cog):
         encounter_text = encounter.text
         # monster links
         referenced_monsters = matcha.extract_monsters(encounter.text)
-        for mon, pos in matcha.list_to_pairs(referenced_monsters):
-            encounter_text = encounter_text[:pos] + f"[{mon.name}]({mon.url})" + encounter_text[pos + len(mon.name) :]
+        for mon, match in referenced_monsters:
+            encounter_text = (
+                encounter_text[: match.start()] + f"[{mon.name}]({mon.url})" + encounter_text[match.end() :]
+            )
         # rolls
-        encounter_text = re.sub(r"\{(.+?)}", lambda match: d20.roll(match.group(1)).result, encounter_text)
+        encounter_text = re.sub(r"\{(.+?)}", lambda m: d20.roll(m[1]).result, encounter_text)
 
         # save the encounter to db
         tiers_str = ", ".join(map(str, tiers))
