@@ -206,9 +206,19 @@ class Monster(BaseModel):
     entitlement_entity_type: Optional[str] = Field(None, alias="entitlementEntityType")
     entitlement_entity_id: Optional[int] = Field(None, alias="entitlementEntityId")
     is_legacy: bool = Field(False, alias="isLegacy")
+    rules_version: str = Field("", alias="rulesVersion")
 
     @cached_property
     def name_re(self) -> re.Pattern:
+        if self.rules_version:
+            return re.compile(
+                rf"\b({re.escape(self.name)}\s*\({re.escape(self.rules_version)}\)|{re.escape(self.name)})"
+            )
+        elif not self.rules_version:
+            if self.is_legacy:
+                return re.compile(rf"\b({re.escape(self.name)}\s*\(2014\)|{re.escape(self.name)})")
+            else:
+                return re.compile(rf"\b({re.escape(self.name)}\s*\(2024\)|{re.escape(self.name)})")
         return re.compile(rf"\b{re.escape(self.name)}")
 
     def get_senses_str(self):
