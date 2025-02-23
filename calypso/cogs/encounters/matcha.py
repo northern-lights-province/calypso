@@ -67,4 +67,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     gamedata.GamedataRepository.reload()
     test_str = "an Ancient Red Dragon (2014) and an Ancient Red Dragon (2024) and 3 Skeletons and a Dire Wolf (2024)"
-    print(extract_monsters(test_str))
+    referenced_monsters = extract_monsters(test_str)
+    for mon, match in sorted(referenced_monsters, key=lambda p: p[1].start(), reverse=True):
+        test_str = test_str[: match.start()] + f"[{match[0]}]({mon.url})" + test_str[match.end() :]
+    print(test_str)

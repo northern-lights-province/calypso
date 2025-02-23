@@ -145,9 +145,9 @@ class Encounters(commands.Cog):
         encounter_text = encounter.text
         # monster links
         referenced_monsters = matcha.extract_monsters(encounter.text)
-        for mon, match in referenced_monsters:
+        for mon, match in sorted(referenced_monsters, key=lambda p: p[1].start(), reverse=True):
             encounter_text = (
-                encounter_text[: match.start()] + f"[{mon.name}]({mon.url})" + encounter_text[match.end() :]
+                encounter_text[: match.start()] + f"[{match[0]}]({mon.url})" + encounter_text[match.end() :]
             )
         # rolls
         encounter_text = re.sub(r"\{(.+?)}", lambda m: d20.roll(m[1]).result, encounter_text)
