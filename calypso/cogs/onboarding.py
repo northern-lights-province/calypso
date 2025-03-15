@@ -1,10 +1,18 @@
+import enum
+
 import disnake
 from disnake.ext import commands
 
 from calypso import constants, utils
 
 ONBOARDING_BUTTON_ID = "onboarding.agree"
-THREAD_BUTTON_ID = "onboarding.thread"
+CHAR_THREAD_BUTTON_ID = "onboarding.thread"
+STAFF_THREAD_BUTTON_ID = "onboarding.thread.staff"
+
+
+class ThreadCreateButtonType(enum.Enum):
+    CHAR_CREATION = "char_creation"
+    STAFF = "staff"
 
 
 class Onboarding(commands.Cog):
@@ -48,7 +56,7 @@ class Onboarding(commands.Cog):
             f"Welcome to the Northern Lights Province, {member.mention}!"
         )
 
-    # thread
+    # character creation thread
     @commands.slash_command(
         description="Sends a new button to create a private thread, in this channel.", dm_permission=False
     )
@@ -59,20 +67,28 @@ class Onboarding(commands.Cog):
         label: commands.String[1, 80] = None,
         emoji: str = None,
         style: disnake.ButtonStyle = disnake.ButtonStyle.primary.value,
+        thread_type: ThreadCreateButtonType = ThreadCreateButtonType.CHAR_CREATION,
     ):
         if label is None:
             label = "Create thread"
         if emoji is not None:
             emoji = disnake.PartialEmoji.from_str(emoji)
+        if thread_type == ThreadCreateButtonType.CHAR_CREATION:
+            button_id = CHAR_THREAD_BUTTON_ID
+        else:
+            button_id = STAFF_THREAD_BUTTON_ID
         await inter.channel.send(
             components=disnake.ui.Button(
-                style=disnake.ButtonStyle(style), emoji=emoji, label=label, custom_id=THREAD_BUTTON_ID
+                style=disnake.ButtonStyle(style), emoji=emoji, label=label, custom_id=button_id
             )
         )
         await inter.send("ok", ephemeral=True)
 
     async def on_thread_click(self, interaction: disnake.MessageInteraction):
-        thread_name = utils.smart_trim(f"Character Submission: {interaction.author.name}", max_len=80)
+        if interaction.data.custom_id == CHAR_THREAD_BUTTON_ID:
+            thread_name = utils.smart_trim(f"Character Submission: {interaction.author.name}", max_len=80)
+        else:
+            thread_name = utils.smart_trim(f"Staff Thread: {interaction.author.name}", max_len=80)
         channel = interaction.channel
         thread = await channel.create_thread(
             name=thread_name,
@@ -80,6 +96,9 @@ class Onboarding(commands.Cog):
             auto_archive_duration=10080,
         )
         await thread.add_user(interaction.author)
+        if interaction.data.custom_id == STAFF_THREAD_BUTTON_ID:
+            # ping staff
+            await thread.send(f"<@&{constants.STAFF_ROLE_ID}>")
         await interaction.send("Thread created!", ephemeral=True)
 
     # listener
@@ -91,7 +110,7 @@ class Onboarding(commands.Cog):
             return
         if interaction.data.custom_id == ONBOARDING_BUTTON_ID:
             return await self.on_onboard_click(interaction)
-        if interaction.data.custom_id == THREAD_BUTTON_ID:
+        if interaction.data.custom_id in (CHAR_THREAD_BUTTON_ID, STAFF_THREAD_BUTTON_ID):
             return await self.on_thread_click(interaction)
 
 
