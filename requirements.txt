@@ -3,6 +3,7 @@ d20~=1.1.2
 disnake~=2.9.0
 kani[openai]>=1.0.0,<2.0.0
 gspread~=5.12.0
+markovify~=0.9.4
 playwright~=1.40.0
 pydantic~=2.5.2
 rapidfuzz~=3.5.2

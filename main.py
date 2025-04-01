@@ -15,6 +15,7 @@ COGS = (
     "calypso.cogs.ai",
     "calypso.cogs.utils",
     "calypso.cogs.msglog",
+    "calypso.cogs.markov",
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -44,10 +45,9 @@ async def on_slash_command_error(inter, error):
         traceback.print_exception(error)
 
 
-for cog in COGS:
-    bot.load_extension(cog)
-
 if __name__ == "__main__":
     gamedata.GamedataRepository.reload()
+    for cog in COGS:
+        bot.load_extension(cog)
     bot.loop.create_task(db.init_db())
     bot.run(config.TOKEN)

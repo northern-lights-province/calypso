@@ -20,6 +20,7 @@ class GamedataRepository:
     @classmethod
     def reload(cls, data_path=DATA_DIR):
         log.info(f"Reloading gamedata...")
+        # monsters
         cls.monsters = TypeAdapter(list[Monster]).validate_json((data_path / "monsters.json").read_text())
         cls.monster_descriptions = TypeAdapter(list[MonsterDescription]).validate_json(
             (data_path / "monster_descriptions.json").read_text()
