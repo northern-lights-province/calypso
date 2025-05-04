@@ -296,3 +296,62 @@ class AIUtils(commands.Cog):
         if image.revised_prompt:
             out += f"\n\n**Interpreted as**: {image.revised_prompt[:800]}"
         await inter.send(out, file=disnake.File(data, prompt_filename))
+
+    @commands.slash_command(
+        name="gptimage",
+        description="Generate an image from a description using the new GPT image model.",
+        guild_ids=[constants.GUILD_ID],
+        dm_permission=True,
+    )
+    async def gptimage(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        prompt: str = commands.Param(desc="The image description."),
+        aspect_ratio: str = commands.Param("auto", choices=["auto", "square", "portrait", "landscape"]),
+    ):
+        await inter.response.defer()
+
+        if aspect_ratio == "portrait":
+            size = "1024x1536"
+        elif aspect_ratio == "landscape":
+            size = "1536x1024"
+        elif aspect_ratio == "square":
+            size = "1024x1024"
+        else:
+            size = "auto"
+
+        # generate image and parse webp + metadata
+        resp = await self.bot.openai.images.generate(
+            prompt=prompt,
+            model="gpt-image-1",
+            moderation="low",
+            n=1,
+            quality="auto",
+            output_format="webp",
+            size=size,
+            user=str(inter.author.id),
+            extra_headers={"OpenAI-Organization": config.DALLE_ORG_ID} if config.DALLE_ORG_ID else None,
+        )
+        image = resp.data[0]
+        data_bytes = base64.b64decode(image.b64_json)
+        data = io.BytesIO(data_bytes)
+        prompt_filename = re.sub(r"[^\w\d\-_]", "-", f"{inter.author.name}-{prompt}"[:64]) + ".webp"
+
+        # send
+        out = f"**Prompt**: {prompt[:800]}"
+        await inter.send(out, file=disnake.File(data, prompt_filename))
+
+        # save to db
+        async with db.async_session() as session:
+            db_img = models.DalleImage(
+                author_id=inter.author.id,
+                model="gpt-image-1",
+                prompt=prompt,
+                size=size,
+                style="N/A",
+                data=data_bytes,
+                filename=prompt_filename,
+                revised_prompt="N/A",
+            )
+            session.add(db_img)
+            await session.commit()
