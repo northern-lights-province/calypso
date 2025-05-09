@@ -77,7 +77,7 @@ class Markov(commands.Cog):
             self.spell_times.append(spell["casttime"])
             self.spell_ranges.append(spell["range"])
             self.spell_durations.append(spell["duration"])
-        self.spell_text = SpellText("\n\n\n\n".join(self.spell_corpus))
+        self.spell_text = SpellText("\n\n\n\n".join(self.spell_corpus), state_size=2)
         self.spell_name_text = NameText("\n".join(self.spell_names), state_size=3)
 
         # items
@@ -85,7 +85,7 @@ class Markov(commands.Cog):
             items = json.load(f)
         for item in items:
             self.item_metas.append(item["meta"])
-        self.item_text = SpellText("\n\n\n\n".join(s["desc"] for s in items))
+        self.item_text = SpellText("\n\n\n\n".join(s["desc"] for s in items), state_size=3)
         self.item_name_text = NameText("\n".join(s["name"] for s in items), state_size=3)
 
         # feats
@@ -93,7 +93,7 @@ class Markov(commands.Cog):
             feats = json.load(f)
         for feat in feats:
             self.feat_prereqs.append(feat["prerequisite"])
-        self.feat_text = SpellText("\n\n\n\n".join(s["description"] for s in feats))
+        self.feat_text = SpellText("\n\n\n\n".join(s["description"] for s in feats), state_size=3)
         self.feat_name_text = NameText("\n".join(s["name"] for s in feats), state_size=3)
 
     # generate
