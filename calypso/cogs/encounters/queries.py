@@ -1,3 +1,5 @@
+import datetime
+
 from sqlalchemy import delete, select
 
 from calypso import models
@@ -17,6 +19,17 @@ async def get_all_encounter_channels(session) -> list[models.EncounterChannel]:
 
 async def delete_encounter_channel(session, channel_id: int):
     await session.execute(delete(models.EncounterChannel).where(models.EncounterChannel.channel_id == channel_id))
+
+
+async def get_current_encounter_adjustments(session, table_name: str, tier: int) -> list[models.EncounterAdjustment]:
+    stmt = (
+        select(models.EncounterAdjustment)
+        .where(models.EncounterAdjustment.until >= datetime.datetime.utcnow())
+        .where(models.EncounterAdjustment.table_name == table_name)
+        .where(models.EncounterAdjustment.tier == tier)
+    )
+    result = await session.execute(stmt)
+    return result.scalars().all()
 
 
 # ==== ai ====

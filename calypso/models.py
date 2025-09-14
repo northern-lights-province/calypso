@@ -117,6 +117,18 @@ class RolledEncounter(Base):
         return re.sub(r"\[(.+?)]\(http.+?\)", r"\1", self.rendered_text)
 
 
+class EncounterAdjustment(Base):
+    __tablename__ = "enc_encounter_adjustment"
+
+    id = Column(Integer, primary_key=True)
+    until = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, index=True)
+    table_name = Column(String, nullable=False)
+    tier = Column(Integer, nullable=False)
+    text = Column(String, nullable=False)  # the unrendered encounter text to deweight
+    penalty = Column(Integer, nullable=False, default=1)
+
+
+# --- ai ---
 class EncounterAISummary(Base):
     __tablename__ = "enc_summaries"
 

@@ -3,6 +3,7 @@ Random encounter tables for the NLP. These commands can only be run in the NLP s
 """
 
 import asyncio
+import datetime
 import random
 import re
 from bisect import bisect_left
@@ -21,6 +22,10 @@ from .client import EncounterClient, EncounterRepository, Tier
 from .params import biome_param
 
 UNDERDARK_BIOME = "NLPUnderdark"
+# when an encounter is rolled, penalize its weight by REROLL_PENALTY for PENALTY_DECAY_DAYS, min MIN_PENALIZED_WEIGHT
+REROLL_PENALTY = 1
+PENALTY_DECAY_DAYS = 7
+MIN_PENALIZED_WEIGHT = 1
 
 
 class NoValidTier(CalypsoError):
@@ -82,7 +87,9 @@ class Encounters(commands.Cog):
         tier_objs = []
         for tier in tiers:
             try:
-                tier_objs.append(_get_biome_tier(biome, tier))
+                tier_obj = _get_biome_tier(biome, tier)
+                tier_obj = await _apply_weight_adjustments(tier_obj)
+                tier_objs.append(tier_obj)
             except NoValidTier as e:
                 return await inter.send(e.msg, ephemeral=private)
         tier_obj = _merge_tiers(*tier_objs)
@@ -110,6 +117,7 @@ class Encounters(commands.Cog):
                 additional_tables = []
                 for tier in tiers:
                     additional_table = _get_biome_tier(random_echannel.enc_table_name, tier, closest=True)
+                    additional_table = await _apply_weight_adjustments(additional_table)
                     weight = 0.5 if additional_table.tier == tier else 0.1
                     additional_tables.append((additional_table, weight))
                 weights = "; ".join(
@@ -155,6 +163,7 @@ class Encounters(commands.Cog):
         # save the encounter to db
         tiers_str = ", ".join(map(str, tiers))
         async with db.async_session() as session:
+            # for logging
             rolled_encounter = models.RolledEncounter(
                 channel_id=inter.channel_id,
                 author_id=inter.author.id,
@@ -166,6 +175,22 @@ class Encounters(commands.Cog):
                 biome_text=echannel.desc if echannel else None,
             )
             session.add(rolled_encounter)
+
+            # and add an adjustment for the rolled encounter if not a manual roll
+            if echannel:
+                # apply to all rolled tiers since we don't know exactly which one it came from
+                # if the same enc is on 2 different tier lists it gets penalized twice; otherwise it will only affect
+                # the real one
+                for t in tiers:
+                    adjustment = models.EncounterAdjustment(
+                        until=datetime.datetime.utcnow() + datetime.timedelta(days=PENALTY_DECAY_DAYS),
+                        table_name=biome,
+                        tier=t,
+                        text=encounter.text,
+                        penalty=REROLL_PENALTY,
+                    )
+                    session.add(adjustment)
+
             await session.commit()
 
         # send the message, with options for AI assist
@@ -456,3 +481,21 @@ def _merge_tiers_weighted(*pairs: tuple[Tier, float], name=None, tier=None):
 
 def _merge_tiers(*tiers: Tier, **kwargs):
     return _merge_tiers_weighted(*((tier, 1) for tier in tiers), **kwargs)
+
+
+async def _apply_weight_adjustments(tier: Tier) -> Tier:
+    async with db.async_session() as session:
+        adjustments = await queries.get_current_encounter_adjustments(session, tier.biome, tier.tier)
+    if not adjustments:
+        return tier
+
+    copied_tier = tier.model_copy()
+    copied_tier.encounters = tier.encounters.copy()
+    for idx, enc in enumerate(copied_tier.encounters):
+        for adjustment in adjustments:
+            if adjustment.text == enc.text:
+                if enc.weight <= MIN_PENALIZED_WEIGHT:
+                    continue
+                enc = enc.model_copy(update={"weight": max(MIN_PENALIZED_WEIGHT, enc.weight - adjustment.penalty)})
+                copied_tier.encounters[idx] = enc
+    return copied_tier
