@@ -32,6 +32,31 @@ async def get_current_encounter_adjustments(session, table_name: str, tier: int)
     return result.scalars().all()
 
 
+async def get_current_outbreaks(session, channel_id: int) -> list[models.EncounterOutbreak]:
+    stmt = (
+        select(models.EncounterOutbreak)
+        .where(models.EncounterOutbreak.until >= datetime.datetime.utcnow())
+        .where(models.EncounterOutbreak.channel_id == channel_id)
+    )
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
+async def get_all_outbreaks(session) -> list[models.EncounterOutbreak]:
+    stmt = select(models.EncounterOutbreak)
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
+async def get_outbreak(session, outbreak_id: int):
+    result = await session.execute(select(models.EncounterOutbreak).where(models.EncounterOutbreak.id == outbreak_id))
+    return result.scalar()
+
+
+async def delete_outbreak(session, outbreak_id: int):
+    await session.execute(delete(models.EncounterOutbreak).where(models.EncounterOutbreak.id == outbreak_id))
+
+
 # ==== ai ====
 async def get_summary_by_id(session, summary_id: int) -> models.EncounterAISummary:
     stmt = select(models.EncounterAISummary).where(models.EncounterAISummary.id == summary_id)

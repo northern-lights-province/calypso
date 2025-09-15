@@ -117,7 +117,7 @@ class Encounters(commands.Cog):
                 additional_tables = []
                 for tier in tiers:
                     additional_table = _get_biome_tier(random_echannel.enc_table_name, tier, closest=True)
-                    additional_table = await _apply_weight_adjustments(additional_table)
+                    additional_table = await _apply_weight_adjustments(additional_table, biome=biome)
                     weight = 0.5 if additional_table.tier == tier else 0.1
                     additional_tables.append((additional_table, weight))
                 weights = "; ".join(
@@ -140,6 +140,24 @@ class Encounters(commands.Cog):
                     *((additional_table, weight) for additional_table, weight in additional_tables),
                     name=f"NLPUnderdark + {random_echannel.enc_table_name}",
                 )
+
+        # outbreaks
+        if echannel:
+            # only if in the channel, not a test roll
+            outbreak_tables = []
+            async with db.async_session() as session:
+                outbreaks = await queries.get_current_outbreaks(session, echannel.channel_id)
+
+            for outbreak in outbreaks:
+                try:
+                    additional_table = _get_biome_tier(outbreak.table_name, tier)
+                except NoValidTier:
+                    continue
+                additional_table = await _apply_weight_adjustments(additional_table, biome=biome)
+                outbreak_tables.append(additional_table)
+
+            if outbreak_tables:
+                tier_obj = _merge_tiers(tier_obj, *outbreak_tables, name=tier_obj.biome)
 
         # choose a random encounter
         # alg derived from random.randchoices
@@ -389,6 +407,102 @@ class Encounters(commands.Cog):
             await session.commit()
         await inter.send(f"Deleted the managed encounter channel in {channel.mention}.")
 
+    @encadmin_channel.sub_command(
+        name="add-outbreak", description="Add an outbreak (temporary additional table) to a channel."
+    )
+    async def encadmin_channel_add_outbreak(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        channel: disnake.abc.GuildChannel = commands.Param(desc="The channel (or category) for the outbreak"),
+        enc_table: str = biome_param(desc="The encounter table for this biome"),
+        days: int = commands.Param(desc="How many days the outbreak should last"),
+    ):
+        if isinstance(channel, disnake.TextChannel):
+            channel_ids = [channel.id]
+        elif isinstance(channel, disnake.CategoryChannel):
+            channel_ids = [t.id for t in channel.channels if isinstance(t, disnake.TextChannel)]
+        else:
+            return await inter.send("Invalid channel.")
+
+        ignored_channels = []
+        missing_tiers = set()
+        async with db.async_session() as session:
+            for channel_id in channel_ids:
+                existing = await queries.get_encounter_channel(session, channel_id)
+                if not existing:
+                    ignored_channels.append(channel_id)
+                    continue
+
+                outbreak = models.EncounterOutbreak(
+                    channel_id=channel_id,
+                    until=datetime.datetime.utcnow() + datetime.timedelta(days=days),
+                    table_name=enc_table,
+                )
+                session.add(outbreak)
+
+                # anti foot-gun: check that we have tiers for each existing tier in this biome
+                biome_tiers = [t for t in EncounterRepository.tiers if t.biome == existing.enc_table_name]
+                for t in biome_tiers:
+                    try:
+                        _get_biome_tier(enc_table, t.tier)
+                    except NoValidTier:
+                        missing_tiers.add(t.tier)
+
+            await session.commit()
+
+        msg = f"OK, added an outbreak of {enc_table} to {channel.mention} for {days} days."
+        if ignored_channels:
+            ignored_channels_str = ", ".join(f"<#{c}>" for c in ignored_channels)
+            msg += f"\nSome channels do not have encounters configured and were ignored: {ignored_channels_str}"
+        if missing_tiers:
+            msg += (
+                "\n**WARNING**: Some channels have tiers that do not have corresponding outbreak tables. Missing"
+                f" outbreak table tiers: {sorted(list(missing_tiers))}. Use `/reload_encounters` after creating these"
+                " tables and they will be used correctly."
+            )
+        await inter.send(msg)
+
+    @encadmin_channel.sub_command(name="list-outbreaks", description="List all current outbreaks in any channel.")
+    async def encadmin_channel_list_outbreaks(
+        self, inter: disnake.ApplicationCommandInteraction, show_expired: bool = False
+    ):
+        async with db.async_session() as session:
+            outbreaks = await queries.get_all_outbreaks(session)
+        if not show_expired:
+            now = datetime.datetime.utcnow()
+            outbreaks = [o for o in outbreaks if o.until >= now]
+
+        if not outbreaks:
+            if show_expired:
+                return await inter.send("There are no outbreaks.")
+            return await inter.send("There are no current outbreaks.")
+        await inter.send(
+            "\n".join(
+                f"`{outbreak.id}` - <#{outbreak.channel_id}> - {outbreak.table_name} (until"
+                f" <t:{int(outbreak.until.timestamp())}:f>)"
+                for outbreak in outbreaks
+            )
+        )
+
+    @encadmin_channel.sub_command(name="delete-outbreak", description="Stop tracking a managed encounter channel")
+    async def encadmin_channel_delete_outbreak(
+        self,
+        inter: disnake.ApplicationCommandInteraction,
+        outbreak_id: int = commands.Param(
+            desc="The ID of the outbreak to delete (see /encadmin channel list-outbreaks)"
+        ),
+    ):
+        async with db.async_session() as session:
+            outbreak = await queries.get_outbreak(session, outbreak_id)
+            if not outbreak:
+                return await inter.send("No outbreak with that ID exists.")
+            await queries.delete_outbreak(session, outbreak_id)
+            await session.commit()
+        await inter.send(
+            f"Deleted the outbreak `{outbreak.id}` - <#{outbreak.channel_id}> - {outbreak.table_name} (until"
+            f" <t:{int(outbreak.until.timestamp())}:f>)"
+        )
+
 
 async def _send_encchannel_message(channel: disnake.TextChannel, encounter_channel: models.EncounterChannel):
     embed = None
@@ -483,9 +597,14 @@ def _merge_tiers(*tiers: Tier, **kwargs):
     return _merge_tiers_weighted(*((tier, 1) for tier in tiers), **kwargs)
 
 
-async def _apply_weight_adjustments(tier: Tier) -> Tier:
+async def _apply_weight_adjustments(tier: Tier, *, biome=None) -> Tier:
+    """
+    Return a new reweighted table with adjustments applied.
+
+    If *biome* is supplied, read adjustments for that biome instead of the one linked to the Tier object.
+    """
     async with db.async_session() as session:
-        adjustments = await queries.get_current_encounter_adjustments(session, tier.biome, tier.tier)
+        adjustments = await queries.get_current_encounter_adjustments(session, biome or tier.biome, tier.tier)
     if not adjustments:
         return tier
 

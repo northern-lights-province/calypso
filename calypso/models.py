@@ -118,7 +118,7 @@ class RolledEncounter(Base):
 
 
 class EncounterAdjustment(Base):
-    __tablename__ = "enc_encounter_adjustment"
+    __tablename__ = "enc_adjustments"
 
     id = Column(Integer, primary_key=True)
     until = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, index=True)
@@ -126,6 +126,15 @@ class EncounterAdjustment(Base):
     tier = Column(Integer, nullable=False)
     text = Column(String, nullable=False)  # the unrendered encounter text to deweight
     penalty = Column(Integer, nullable=False, default=1)
+
+
+class EncounterOutbreak(Base):
+    __tablename__ = "enc_outbreaks"
+
+    id = Column(Integer, primary_key=True)
+    channel_id = Column(BigInteger, nullable=False)
+    until = Column(DateTime, nullable=False, default=datetime.datetime.utcnow, index=True)
+    table_name = Column(String, nullable=False)
 
 
 # --- ai ---
