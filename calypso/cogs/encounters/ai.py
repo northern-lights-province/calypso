@@ -33,6 +33,7 @@ SUMMARY_HYPERPARAMS = dict(
 # ENGINE_CLS = OpenAIEngine
 BRAINSTORM_HYPERPARAMS = dict(
     model="claude-opus-4-7",
+    cache_control={"type": "ephemeral", "ttl": "1h"},
 )
 ENGINE_CLS = AnthropicEngine
 
@@ -62,7 +63,7 @@ async def on_message(bot: "Calypso", message: disnake.Message):
 
         # do a chat round w/ the chatterbox
         async with message.channel.typing():
-            response = await chatter.chat_round_str(prompt, cache_control={"type": "ephemeral"})
+            response = await chatter.chat_round_str(prompt)
             await utils.send_chunked(message.channel, response)
 
         # record model msg in db
@@ -415,8 +416,7 @@ def creature_meta(monster: gamedata.Monster) -> str:
     ac = str(monster.ac) + (f" ({monster.armortype})" if monster.armortype else "")
     hp = f"{monster.hp} ({monster.hitdice})"
     meta = (
-        f"{monster.name}\n"
-        f"{'-' * len(monster.name)}\n"
+        f"# {monster.name}\n"
         f"Armor Class: {ac}\n"
         f"Hit Points: {hp}\n"
         f"Speed: {monster.speed}\n"
@@ -437,6 +437,42 @@ def creature_meta(monster: gamedata.Monster) -> str:
         meta += f"Condition Immunities: {', '.join(monster.condition_immune)}\n"
     if monster.languages:
         meta += f"Languages: {', '.join(monster.languages)}\n"
+    # actions
+    if monster.traits:
+        trait = "\n\n".join(f"***{a.name}.*** {a.desc}" for a in monster.traits)
+        if trait:
+            meta += f"## Special Abilities\n\n{trait}"
+    if monster.actions:
+        action = "\n\n".join(f"***{a.name}.*** {a.desc}" for a in monster.actions)
+        if action:
+            meta += f"## Actions\n\n{action}"
+    if monster.bonus_actions:
+        bonus_action = "\n\n".join(f"***{a.name}.*** {a.desc}" for a in monster.bonus_actions)
+        if bonus_action:
+            meta += f"## Bonus Actions\n\n{bonus_action}"
+    if monster.reactions:
+        reaction = "\n\n".join(f"***{a.name}.*** {a.desc}" for a in monster.reactions)
+        if reaction:
+            meta += f"## Reactions\n\n{reaction}"
+    if monster.legactions:
+        proper_name = f"The {monster.name}" if not monster.proper else monster.name
+        legendary = [
+            f"{proper_name} can take {monster.la_per_round} legendary actions, choosing from "
+            "the options below. Only one legendary action can be used at a time and only at the "
+            f"end of another creature's turn. {proper_name} regains spent legendary actions at "
+            "the start of its turn."
+        ]
+        for a in monster.legactions:
+            if a.name:
+                legendary.append(f"***{a.name}.*** {a.desc}")
+            else:
+                legendary.append(a.desc)
+        if legendary:
+            meta += f"## Legendary Actions\n\n{legendary}"
+    if monster.mythic_actions:
+        mythic_action = "\n\n".join(f"***{a.name}.*** {a.desc}" for a in monster.mythic_actions)
+        if mythic_action:
+            meta += f"## Mythic Actions\n\n{mythic_action}"
     return meta.strip()
 
 
@@ -459,12 +495,9 @@ def setting_and_creatures(encounter: models.RolledEncounter, monsters: list[game
     for monster in monsters:
         desc = creature_desc(monster)
         if not desc:
-            n = random.randint(2, 4)
-            chosen_sources = random.sample(("folklore", "common sense", "mythology", "culture"), n)
-            random_sources = utils.natural_join(chosen_sources, "and")
             desc = (
-                f"Calypso, please provide the DM with information about the {monster.name} using information from"
-                f" {random_sources}."
+                "This monster does not have official lore. Please use information from common sense, mythology, and"
+                " culture."
             )
         creature_info_parts.append(f"{creature_meta(monster)}\n\n{desc}".strip())
     creature_info = "\n\n".join(creature_info_parts)
