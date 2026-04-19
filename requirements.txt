@@ -1,7 +1,7 @@
 asyncpg==0.27.0
 d20~=1.1.2
 disnake~=2.9.0
-kani[openai]>=1.0.0,<2.0.0
+kani[anthropic,openai]>=1.0.0,<2.0.0
 gspread~=5.12.0
 markovify~=0.9.4
 playwright~=1.40.0

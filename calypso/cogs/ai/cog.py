@@ -5,13 +5,13 @@ import re
 
 import disnake
 from disnake.ext import commands
-from kani import ChatMessage, ChatRole, Kani
+from kani import ChatRole
 
 from calypso import Calypso, config, constants, db, models
 from calypso.utils.functions import send_chunked
 from calypso.utils.prompts import chat_prompt
 from .aikani import AIKani
-from .engines import CHAT_4O_HYPERPARAMS, chat_engine
+from .engines import CHAT_HYPERPARAMS, chat_engine
 
 
 class AIUtils(commands.Cog):
@@ -131,6 +131,7 @@ class AIUtils(commands.Cog):
 
         # do a chat round w/ the chatterbox
         chatter = self.chats[message.channel.id]
+        chatter.last_user_message_id = message.id
         prompt = chat_prompt(message)
 
         # record user msg in db
@@ -141,16 +142,14 @@ class AIUtils(commands.Cog):
 
             # do a chat round w/ the chatterbox
             async with message.channel.typing():
-                async for msg in chatter.full_round(prompt, user=str(message.author.id)):
+                async for msg in chatter.full_round(prompt, cache_control={"type": "ephemeral"}):
                     if msg.role == ChatRole.ASSISTANT and msg.content:
                         await send_chunked(
                             message.channel, msg.content, allowed_mentions=disnake.AllowedMentions.none()
                         )
 
                     # record msg in db
-                    model_msg = models.AIChatMessage(
-                        chat_id=chatter.chat_session_id, role=msg.role, content=msg.content
-                    )
+                    model_msg = models.AIChatMessage(chat_id=chatter.chat_session_id, role=msg.role, content=msg.text)
                     session.add(model_msg)
                     if msg.function_call:
                         func_call = models.AIFunctionCall(
@@ -158,31 +157,6 @@ class AIUtils(commands.Cog):
                         )
                         session.add(func_call)
                     await session.commit()
-
-        # do a thread rename after 2 rounds
-        if (
-            chatter.chat_title is None
-            and len(chatter.chat_history) >= 4
-            and isinstance(message.channel, disnake.Thread)
-        ):
-            title_kani = Kani(
-                chat_engine,
-                chat_history=[
-                    ChatMessage.user("Here is the start of a conversation:"),
-                    *[m for m in chatter.chat_history if m.role in (ChatRole.USER, ChatRole.ASSISTANT)],
-                ],
-            )
-            title_cmpl = await title_kani.chat_round_str(
-                "Come up with a punchy title for this conversation.\n\nReply with your answer only and be specific.",
-                user=str(message.author.id),
-            )
-            thread_title = title_cmpl.strip(' "')
-            async with db.async_session() as session:
-                db_chat = await session.get(models.AIOpenEndedChat, chatter.chat_session_id)
-                chatter.chat_title = thread_title
-                db_chat.thread_title = thread_title
-                await session.commit()
-            await message.channel.edit(name=thread_title)
 
     @commands.Cog.listener()
     async def on_thread_update(self, _, after: disnake.Thread):
@@ -225,7 +199,7 @@ class AIUtils(commands.Cog):
                 channel_id=inter.channel_id,
                 author_id=inter.author.id,
                 prompt=json.dumps([m.model_dump(mode="json", exclude_none=True) for m in await chatter.get_prompt()]),
-                hyperparams=json.dumps(CHAT_4O_HYPERPARAMS),
+                hyperparams=json.dumps(CHAT_HYPERPARAMS),
                 thread_id=thread.id,
             )
             session.add(brainstorm)

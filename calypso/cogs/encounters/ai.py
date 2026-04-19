@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import disnake.ui
 from kani import ChatMessage, ChatRole, Kani
-from kani.engines.openai import OpenAIEngine
+from kani.engines.anthropic import AnthropicEngine
 
 from calypso import constants, db, gamedata, models, utils
 from calypso.cogs import weather
@@ -24,12 +24,17 @@ SUMMARY_HYPERPARAMS = dict(
     top_p=0.95,
     frequency_penalty=0.5,
 )
+# BRAINSTORM_HYPERPARAMS = dict(
+#     model="gpt-4o",
+#     temperature=1,
+#     top_p=0.95,
+#     frequency_penalty=0.1,
+# )
+# ENGINE_CLS = OpenAIEngine
 BRAINSTORM_HYPERPARAMS = dict(
-    model="gpt-4o",
-    temperature=1,
-    top_p=0.95,
-    frequency_penalty=0.1,
+    model="claude-opus-4-7",
 )
+ENGINE_CLS = AnthropicEngine
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +62,7 @@ async def on_message(bot: "Calypso", message: disnake.Message):
 
         # do a chat round w/ the chatterbox
         async with message.channel.typing():
-            response = await chatter.chat_round_str(prompt, user=str(message.author.id))
+            response = await chatter.chat_round_str(prompt, cache_control={"type": "ephemeral"})
             await utils.send_chunked(message.channel, response)
 
         # record model msg in db
@@ -177,7 +182,6 @@ class EncounterHelperController(disnake.ui.View):
         else:
             prompt = summary_prompt_2(self.encounter, self.monsters)
 
-        # noinspection PyUnresolvedReferences
         completion = await interaction.bot.openai_kani.create_completion(
             prompt=prompt, user=str(interaction.author.id), **SUMMARY_HYPERPARAMS
         )
@@ -282,7 +286,7 @@ class EncounterHelperController(disnake.ui.View):
 
         # load up a chatterbox
         chatter = EncKani(
-            engine=OpenAIEngine(**BRAINSTORM_HYPERPARAMS),
+            engine=ENGINE_CLS(**BRAINSTORM_HYPERPARAMS),
             system_prompt=(
                 "You are a creative D&D player and DM named Calypso.\n"
                 "Avoid mentioning game stats. You may use information from common sense, mythology, and culture."
