@@ -211,65 +211,65 @@ class AIUtils(commands.Cog):
         await thread.add_user(inter.author)
 
     # ==== dalle ====
-    @commands.slash_command(
-        name="dalle",
-        description="Generate an image from a description.",
-        guild_ids=[constants.GUILD_ID],
-        dm_permission=True,
-    )
-    async def dalle(
-        self,
-        inter: disnake.ApplicationCommandInteraction,
-        prompt: str = commands.Param(desc="The image description."),
-        aspect_ratio: str = commands.Param("square", choices=["square", "portrait", "landscape"]),
-        style: str = commands.Param("vivid", choices=["vivid", "natural"]),
-    ):
-        await inter.response.defer()
-
-        if aspect_ratio == "portrait":
-            size = "1024x1792"
-        elif aspect_ratio == "landscape":
-            size = "1792x1024"
-        else:
-            size = "1024x1024"
-
-        # generate image and parse webp + metadata
-        resp = await self.bot.openai.images.generate(
-            prompt=prompt,
-            model="dall-e-3",
-            n=1,
-            quality="hd",
-            response_format="b64_json",
-            size=size,
-            style=style,
-            user=str(inter.author.id),
-            extra_headers={"OpenAI-Organization": config.DALLE_ORG_ID} if config.DALLE_ORG_ID else None,
-        )
-        image = resp.data[0]
-        data_bytes = base64.b64decode(image.b64_json)
-        data = io.BytesIO(data_bytes)
-        prompt_filename = re.sub(r"[^\w\d\-_]", "-", f"{inter.author.name}-{prompt}"[:64]) + ".webp"
-
-        # save to db
-        async with db.async_session() as session:
-            db_img = models.DalleImage(
-                author_id=inter.author.id,
-                model="dall-e-3",
-                prompt=prompt,
-                size=size,
-                style=style,
-                data=data_bytes,
-                filename=prompt_filename,
-                revised_prompt=image.revised_prompt,
-            )
-            session.add(db_img)
-            await session.commit()
-
-        # send
-        out = f"**Prompt**: {prompt[:800]}"
-        if image.revised_prompt:
-            out += f"\n\n**Interpreted as**: {image.revised_prompt[:800]}"
-        await inter.send(out, file=disnake.File(data, prompt_filename))
+    # @commands.slash_command(
+    #     name="dalle",
+    #     description="Generate an image from a description.",
+    #     guild_ids=[constants.GUILD_ID],
+    #     dm_permission=True,
+    # )
+    # async def dalle(
+    #     self,
+    #     inter: disnake.ApplicationCommandInteraction,
+    #     prompt: str = commands.Param(desc="The image description."),
+    #     aspect_ratio: str = commands.Param("square", choices=["square", "portrait", "landscape"]),
+    #     style: str = commands.Param("vivid", choices=["vivid", "natural"]),
+    # ):
+    #     await inter.response.defer()
+    #
+    #     if aspect_ratio == "portrait":
+    #         size = "1024x1792"
+    #     elif aspect_ratio == "landscape":
+    #         size = "1792x1024"
+    #     else:
+    #         size = "1024x1024"
+    #
+    #     # generate image and parse webp + metadata
+    #     resp = await self.bot.openai.images.generate(
+    #         prompt=prompt,
+    #         model="dall-e-3",
+    #         n=1,
+    #         quality="hd",
+    #         response_format="b64_json",
+    #         size=size,
+    #         style=style,
+    #         user=str(inter.author.id),
+    #         extra_headers={"OpenAI-Organization": config.DALLE_ORG_ID} if config.DALLE_ORG_ID else None,
+    #     )
+    #     image = resp.data[0]
+    #     data_bytes = base64.b64decode(image.b64_json)
+    #     data = io.BytesIO(data_bytes)
+    #     prompt_filename = re.sub(r"[^\w\d\-_]", "-", f"{inter.author.name}-{prompt}"[:64]) + ".webp"
+    #
+    #     # save to db
+    #     async with db.async_session() as session:
+    #         db_img = models.DalleImage(
+    #             author_id=inter.author.id,
+    #             model="dall-e-3",
+    #             prompt=prompt,
+    #             size=size,
+    #             style=style,
+    #             data=data_bytes,
+    #             filename=prompt_filename,
+    #             revised_prompt=image.revised_prompt,
+    #         )
+    #         session.add(db_img)
+    #         await session.commit()
+    #
+    #     # send
+    #     out = f"**Prompt**: {prompt[:800]}"
+    #     if image.revised_prompt:
+    #         out += f"\n\n**Interpreted as**: {image.revised_prompt[:800]}"
+    #     await inter.send(out, file=disnake.File(data, prompt_filename))
 
     @commands.slash_command(
         name="gptimage",
@@ -281,6 +281,7 @@ class AIUtils(commands.Cog):
         self,
         inter: disnake.ApplicationCommandInteraction,
         prompt: str = commands.Param(desc="The image description."),
+        quality: str = commands.Param("medium", choices=["high", "medium", "low"]),
         aspect_ratio: str = commands.Param("auto", choices=["auto", "square", "portrait", "landscape"]),
     ):
         await inter.response.defer()
@@ -297,10 +298,10 @@ class AIUtils(commands.Cog):
         # generate image and parse webp + metadata
         resp = await self.bot.openai.images.generate(
             prompt=prompt,
-            model="gpt-image-1",
+            model="gpt-image-2",
             moderation="low",
             n=1,
-            quality="auto",
+            quality=quality,
             output_format="webp",
             size=size,
             user=str(inter.author.id),
