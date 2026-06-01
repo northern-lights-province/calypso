@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import random
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -11,6 +10,7 @@ from kani.engines.anthropic import AnthropicEngine
 
 from calypso import constants, db, gamedata, models, utils
 from calypso.cogs import weather
+from calypso.cogs.ai import prompts
 from . import queries
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ async def on_message(bot: "Calypso", message: disnake.Message):
 
     # get the chatterbox
     chatter = bot.enc_chatterboxes[message.channel.id]
-    prompt = utils.prompts.chat_prompt(message)
+    prompt = prompts.chat_prompt(message)
 
     # record user msg in db
     async with db.async_session() as session:

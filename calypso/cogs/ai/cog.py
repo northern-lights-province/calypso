@@ -1,4 +1,5 @@
 import base64
+import collections
 import io
 import json
 import re
@@ -9,9 +10,9 @@ from kani import ChatRole
 
 from calypso import Calypso, config, constants, db, models
 from calypso.utils.functions import send_chunked
-from calypso.utils.prompts import chat_prompt
 from .aikani import AIKani
 from .engines import CHAT_HYPERPARAMS, chat_engine
+from .prompts import AI_CHAT_PROMPT, chat_prompt
 
 
 class AIUtils(commands.Cog):
@@ -20,6 +21,7 @@ class AIUtils(commands.Cog):
     def __init__(self, bot):
         self.bot: Calypso = bot
         self.chats: dict[int, AIKani] = {}
+        self.chat_input_buffer: dict[int, list[str]] = collections.defaultdict(list)
 
     @commands.slash_command(name="ai", description="AI utilities", guild_ids=[constants.GUILD_ID])
     async def ai(self, inter: disnake.ApplicationCommandInteraction):
@@ -129,34 +131,46 @@ class AIUtils(commands.Cog):
         if message.author.bot or message.is_system():
             return
 
-        # do a chat round w/ the chatterbox
+        # create the prompt and add it to the channel buffer
         chatter = self.chats[message.channel.id]
         chatter.last_user_message_id = message.id
         prompt = chat_prompt(message)
+        self.chat_input_buffer[message.channel.id].append(prompt)
 
-        # record user msg in db
         async with db.async_session() as session:
             user_msg = models.AIChatMessage(chat_id=chatter.chat_session_id, role=ChatRole.USER, content=prompt)
             session.add(user_msg)
             await session.commit()
 
-            # do a chat round w/ the chatterbox
-            async with message.channel.typing():
-                async for msg in chatter.full_round(prompt, cache_control={"type": "ephemeral"}):
-                    if msg.role == ChatRole.ASSISTANT and msg.content:
-                        await send_chunked(
-                            message.channel, msg.content, allowed_mentions=disnake.AllowedMentions.none()
-                        )
+            # if the lock is held, terminate here; otherwise enter the buffer consumption loop
+            if chatter.lock.locked():
+                return
 
-                    # record msg in db
-                    model_msg = models.AIChatMessage(chat_id=chatter.chat_session_id, role=msg.role, content=msg.text)
-                    session.add(model_msg)
-                    if msg.function_call:
-                        func_call = models.AIFunctionCall(
-                            message=model_msg, name=msg.function_call.name, arguments=msg.function_call.arguments
+            # consume all messages from the input buffer until we have none left (future discord messages might add to
+            # the buf before we are done processing one)
+            async with message.channel.typing():
+                while buf := self.chat_input_buffer[message.channel.id]:
+                    prompt = "\n\n---\n\n".join(buf)
+                    buf.clear()
+
+                    async for msg in chatter.full_round(prompt, cache_control={"type": "ephemeral"}):
+                        if msg.role == ChatRole.ASSISTANT and msg.text:
+                            await send_chunked(
+                                message.channel, msg.text, allowed_mentions=disnake.AllowedMentions.none()
+                            )
+
+                        # record msg in db
+                        model_msg = models.AIChatMessage(
+                            chat_id=chatter.chat_session_id, role=msg.role, content=msg.text
                         )
-                        session.add(func_call)
-                    await session.commit()
+                        session.add(model_msg)
+                        if msg.tool_calls:
+                            for tc in msg.tool_calls:
+                                func_call = models.AIFunctionCall(
+                                    message=model_msg, name=tc.function.name, arguments=tc.function.arguments
+                                )
+                                session.add(func_call)
+                        await session.commit()
 
     @commands.Cog.listener()
     async def on_thread_update(self, _, after: disnake.Thread):
@@ -185,12 +199,7 @@ class AIUtils(commands.Cog):
             bot=self.bot,
             channel_id=thread.id,
             engine=chat_engine,
-            system_prompt=(
-                "You are a knowledgeable D&D player. Answer as concisely as possible.\nYou are acting as Calypso, a"
-                " faerie from the Feywild. The user has already been introduced to you.\nEach reply should consist of"
-                " just Calypso's response, without quotation marks.\nYou should stay in character no matter what the"
-                " user says."
-            ),
+            system_prompt=AI_CHAT_PROMPT,
         )
 
         # register session in db

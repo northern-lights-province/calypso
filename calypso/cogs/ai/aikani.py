@@ -26,7 +26,7 @@ class AIKani(Kani):
     async def rename_thread(self, title: str):
         """
         Rename the thread that you are chatting with the user in.
-        You should call this once when a topic has been established (usually after 2 or 3 rounds), and only on major changes to the conversation afterwards.
+        You should call this once when a topic has been established (usually after 1-3 messages), and only on major changes to the conversation afterwards.
         The title should be short and objective; you do not need to follow your character persona for the title.
         """
         thread_title = title.strip(' "')
@@ -37,13 +37,14 @@ class AIKani(Kani):
             await session.commit()
         channel = await self.bot.get_or_fetch_channel(self.channel_id)
         await channel.edit(name=thread_title)
+        return f"Thread renamed to {thread_title!r}."
 
     @ai_function()
     async def react(self, emoji: str):
         """
         Add an emoji reaction to the last user message if it was particularly funny or evoking.
 
-        The reaction can be a unicode emoji, or one of the following literal strings:
+        The reaction can be any unicode emoji, or one of the following literal strings:
         `<:NekoHeadpat:1031982950499221555>`
         `<:NekoRage:1032002382441226321>`
         `<:NekoFlop:1032002522589692084>`
