@@ -32,7 +32,7 @@ SUMMARY_HYPERPARAMS = dict(
 # )
 # ENGINE_CLS = OpenAIEngine
 BRAINSTORM_HYPERPARAMS = dict(
-    model="claude-opus-4-7",
+    model="claude-opus-4-8",
     cache_control={"type": "ephemeral", "ttl": "1h"},
 )
 ENGINE_CLS = AnthropicEngine

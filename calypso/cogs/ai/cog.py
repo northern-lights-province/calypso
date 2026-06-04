@@ -2,17 +2,21 @@ import base64
 import collections
 import io
 import json
+import logging
 import re
 
 import disnake
 from disnake.ext import commands
 from kani import ChatRole
+from kani.engines.anthropic import AnthropicUnknownPart
 
 from calypso import Calypso, config, constants, db, models
 from calypso.utils.functions import send_chunked
 from .aikani import AIKani
 from .engines import CHAT_HYPERPARAMS, chat_engine
 from .prompts import AI_CHAT_PROMPT, chat_prompt
+
+log = logging.getLogger(__name__)
 
 
 class AIUtils(commands.Cog):
@@ -154,10 +158,9 @@ class AIUtils(commands.Cog):
                     buf.clear()
 
                     async for msg in chatter.full_round(prompt, cache_control={"type": "ephemeral"}):
-                        if msg.role == ChatRole.ASSISTANT and msg.text:
-                            await send_chunked(
-                                message.channel, msg.text, allowed_mentions=disnake.AllowedMentions.none()
-                            )
+                        log.info(msg)
+                        if msg.role == ChatRole.ASSISTANT:
+                            await send_ai_msg(message.channel, msg)
 
                         # record msg in db
                         model_msg = models.AIChatMessage(
@@ -339,3 +342,23 @@ class AIUtils(commands.Cog):
             )
             session.add(db_img)
             await session.commit()
+
+
+async def send_ai_msg(dest, msg):
+    buf = []
+    for part in msg.parts:
+        match part:
+            case AnthropicUnknownPart(type="server_tool_use", data={"name": "web_search", "input": {"query": q}}):
+                buf.append(f"\n> -# Calypso searched for: `{q}`\n")
+            case AnthropicUnknownPart(type="web_fetch_tool_result", data={"content": {"url": url}}):
+                buf.append(f"\n> -# Calypso visited: `{url}`\n")
+            case _:
+                buf.append(str(part))
+
+    if msg.tool_calls:
+        tool_calls = ", ".join(f"`{tc.function.name}`" for tc in msg.tool_calls)
+        tool_calls_str = f"\n> -# Calypso used tools: {tool_calls}"
+        buf.append(tool_calls_str)
+
+    if buf:
+        await send_chunked(dest, "".join(buf), allowed_mentions=disnake.AllowedMentions.none())
