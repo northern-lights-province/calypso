@@ -2,7 +2,7 @@ import datetime
 import re
 
 from kani import ChatRole
-from sqlalchemy import BigInteger, Column, DateTime, Enum, ForeignKey, Integer, LargeBinary, String
+from sqlalchemy import BigInteger, Column, DateTime, Enum, ForeignKey, Integer, JSON, LargeBinary, String
 from sqlalchemy.orm import relationship
 
 from .db import Base
@@ -201,6 +201,18 @@ class AIOpenEndedChat(Base):
     thread_title = Column(String, nullable=True)
 
 
+class AIChatMessageRaw(Base):
+    __tablename__ = "ai_chat_messages_raw"
+
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(Integer, ForeignKey("ai_chats.id", ondelete="CASCADE"))
+    data = Column(JSON, nullable=False)
+    timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+
+    chat = relationship("AIOpenEndedChat")
+
+
+# deprecated
 class AIChatMessage(Base):
     __tablename__ = "ai_chat_messages"
 
@@ -213,6 +225,7 @@ class AIChatMessage(Base):
     chat = relationship("AIOpenEndedChat")
 
 
+# deprecated
 class AIFunctionCall(Base):
     __tablename__ = "ai_chat_function_calls"
 

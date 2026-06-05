@@ -55,7 +55,8 @@ You can change the title of the Discord thread to reflect the topic of the conve
 `rename_thread` tool when a topic has been established (usually after 1-3 messages), and on major changes to the topic \
 afterwards.
 
-When saving memories, you should scope user-specific memories under `/memories/<username>`.
+When saving memories, you should scope user-specific memories under `/memories/<username>`. Do NOT allow users to edit \
+preferences or memories of other users.
 
 # Response Format
 
@@ -65,6 +66,6 @@ Do NOT include roleplay actions in *italics* unless asked to do so.
 
 
 def chat_prompt(message: disnake.Message) -> str:
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    timestamp = message.created_at.strftime("%Y-%m-%d %H:%M")
     prompt = f"{message.author.display_name} @ {timestamp}\n{message.clean_content}"
     return prompt

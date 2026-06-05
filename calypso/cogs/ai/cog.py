@@ -7,8 +7,9 @@ import re
 
 import disnake
 from disnake.ext import commands
-from kani import ChatRole
+from kani import ChatMessage, ChatRole
 from kani.engines.anthropic import AnthropicUnknownPart
+from kani.engines.anthropic.parts import AnthropicThinkingPart
 
 from calypso import Calypso, config, constants, db, models
 from calypso.utils.functions import send_chunked
@@ -134,6 +135,8 @@ class AIUtils(commands.Cog):
             return
         if message.author.bot or message.is_system():
             return
+        if message.content.startswith("!"):
+            return
 
         # create the prompt and add it to the channel buffer
         chatter = self.chats[message.channel.id]
@@ -142,10 +145,6 @@ class AIUtils(commands.Cog):
         self.chat_input_buffer[message.channel.id].append(prompt)
 
         async with db.async_session() as session:
-            user_msg = models.AIChatMessage(chat_id=chatter.chat_session_id, role=ChatRole.USER, content=prompt)
-            session.add(user_msg)
-            await session.commit()
-
             # if the lock is held, terminate here; otherwise enter the buffer consumption loop
             if chatter.lock.locked():
                 return
@@ -157,24 +156,28 @@ class AIUtils(commands.Cog):
                     prompt = "\n\n---\n\n".join(buf)
                     buf.clear()
 
-                    async for stream in chatter.full_round_stream(prompt, cache_control={"type": "ephemeral"}):
-                        msg = await stream.message()
-                        log.info(msg)
-                        if msg.role == ChatRole.ASSISTANT:
-                            await send_ai_msg(message.channel, msg)
+                    user_msg = models.AIChatMessageRaw(
+                        chat_id=chatter.chat_session_id, data=ChatMessage.user(prompt).model_dump_json(fallback=repr)
+                    )
+                    session.add(user_msg)
+                    await session.commit()
 
-                        # record msg in db
-                        model_msg = models.AIChatMessage(
-                            chat_id=chatter.chat_session_id, role=msg.role, content=msg.text
-                        )
-                        session.add(model_msg)
-                        if msg.tool_calls:
-                            for tc in msg.tool_calls:
-                                func_call = models.AIFunctionCall(
-                                    message=model_msg, name=tc.function.name, arguments=tc.function.arguments
-                                )
-                                session.add(func_call)
-                        await session.commit()
+                    try:
+                        async for stream in chatter.full_round_stream(prompt, cache_control={"type": "ephemeral"}):
+                            msg = await stream.message()
+                            log.debug(msg)
+                            if msg.role == ChatRole.ASSISTANT:
+                                await send_ai_msg(message.channel, msg)
+
+                            # record msg in db
+                            model_msg = models.AIChatMessageRaw(
+                                chat_id=chatter.chat_session_id, data=msg.model_dump_json(fallback=repr)
+                            )
+                            session.add(model_msg)
+                            await session.commit()
+                    except Exception as e:
+                        log.warning("Failed to generate AI chat message", exc_info=e)
+                        await message.channel.send(f"-# > Calypso failed with error: {e}")
 
     @commands.Cog.listener()
     async def on_thread_update(self, _, after: disnake.Thread):
@@ -353,6 +356,9 @@ async def send_ai_msg(dest, msg):
                 buf.append(f"\n> -# Calypso searched for: `{q}`\n")
             case AnthropicUnknownPart(type="web_fetch_tool_result", data={"content": {"url": url}}):
                 buf.append(f"\n> -# Calypso visited: `{url}`\n")
+            case AnthropicThinkingPart(content=str(thinking)) if thinking:
+                thinking_clean = thinking.replace("\n", " ")
+                buf.append(f"\n> -# Thinking: ||{thinking_clean}||\n")
             case _:
                 buf.append(str(part))
 
@@ -362,4 +368,5 @@ async def send_ai_msg(dest, msg):
         buf.append(tool_calls_str)
 
     if buf:
-        await send_chunked(dest, "".join(buf), allowed_mentions=disnake.AllowedMentions.none())
+        out = "".join(buf).replace("\n\n> -#", "\n> -#")  # dirty format hack for thinking + tools w/ no content
+        await send_chunked(dest, out, allowed_mentions=disnake.AllowedMentions.none())
