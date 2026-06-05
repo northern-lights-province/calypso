@@ -332,6 +332,8 @@ class AIKani(Kani):
 
 
 def is_public_to_roles(guild: Guild, role_ids: list[int], channel, reduce=any):
+    if channel.type == ChannelType.private_thread:
+        return False
     return reduce(channel.permissions_for(guild.get_role(r)).view_channel for r in role_ids)
 
 
