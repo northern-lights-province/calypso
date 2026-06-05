@@ -157,7 +157,8 @@ class AIUtils(commands.Cog):
                     prompt = "\n\n---\n\n".join(buf)
                     buf.clear()
 
-                    async for msg in chatter.full_round(prompt, cache_control={"type": "ephemeral"}):
+                    async for stream in chatter.full_round_stream(prompt, cache_control={"type": "ephemeral"}):
+                        msg = await stream.message()
                         log.info(msg)
                         if msg.role == ChatRole.ASSISTANT:
                             await send_ai_msg(message.channel, msg)

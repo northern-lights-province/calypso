@@ -13,6 +13,8 @@ from calypso import config
 
 CHAT_HYPERPARAMS = dict(
     model="claude-opus-4-8",
+    max_context_size=512000,
+    max_tokens=64000,
 )
 
 
@@ -24,6 +26,7 @@ class AnthropicServerToolsEngine(AnthropicEngine):
         kwargs["tools"].extend([
             {"type": "web_search_20250305", "name": "web_search", "max_uses": 5},
             {"type": "web_fetch_20250910", "name": "web_fetch", "max_uses": 10},
+            {"type": "memory_20250818", "name": "memory"},
         ])
         return kwargs, prompt_msgs
 

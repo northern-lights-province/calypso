@@ -224,6 +224,21 @@ class AIFunctionCall(Base):
     message = relationship("AIChatMessage")
 
 
+# ==== ai memory ====
+class AIMemory(Base):
+    """
+    A single file in Calypso's memory directory, backing the Anthropic memory tool.
+    Directories are implicit: they are derived from the path prefixes of existing files.
+    https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool
+    """
+
+    __tablename__ = "ai_memories"
+
+    path = Column(String, primary_key=True)  # absolute path, always under /memories
+    content = Column(String, nullable=False, default="")
+    timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+
+
 # ==== message logging ====
 class LoggedMessage(Base):
     __tablename__ = "logged_messages"

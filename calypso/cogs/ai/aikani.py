@@ -6,6 +6,14 @@ from disnake.utils import snowflake_time
 from kani import AIParam, ChatMessage, ChatRole, Kani, ai_function
 
 from calypso import constants, db, models
+from .memory import (
+    memory_create,
+    memory_delete,
+    memory_insert,
+    memory_rename,
+    memory_str_replace,
+    memory_view,
+)
 from .prompts import chat_prompt
 
 if TYPE_CHECKING:
@@ -24,6 +32,38 @@ class AIKani(Kani):
     @property
     def last_user_message(self) -> ChatMessage | None:
         return next((m for m in self.chat_history if m.role == ChatRole.USER), None)
+
+    # ==== meta ====
+    @ai_function(enabled=False, json_schema={}, desc="managed by claude server")
+    async def memory(self, command: str, **kwargs):
+        # we use a disabled aifunction to handle claude server calls
+        # https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool#tool-commands
+        match command, kwargs:
+            # view
+            case ("view", {"path": path, "view_range": (start, end)}):
+                return await memory_view(path, start, end)
+            case ("view", {"path": path}):
+                return await memory_view(path)
+            # create
+            case ("create", {"path": path, "file_text": file_text}):
+                return await memory_create(path, file_text)
+            case ("create", {"path": path}):
+                return await memory_create(path, "")
+            # str_replace
+            case ("str_replace", {"path": path, "old_str": old_str, "new_str": new_str}):
+                return await memory_str_replace(path, old_str, new_str)
+            # insert
+            case ("insert", {"path": path, "insert_line": insert_line, "insert_text": insert_text}):
+                return await memory_insert(path, insert_line, insert_text)
+            # delete
+            case ("delete", {"path": path}):
+                return await memory_delete(path)
+            # rename
+            case ("rename", {"old_path": old_path, "new_path": new_path}):
+                return await memory_rename(old_path, new_path)
+            # default
+            case _:
+                raise ValueError("Unknown or malformed memory command")
 
     # ==== discord ====
     @ai_function()
@@ -115,9 +155,14 @@ class AIKani(Kani):
         for t in target_channel.threads:
             if not is_public_to_roles(invoker_channel.guild, [constants.MEMBER_ROLE_ID, constants.PLAYER_ROLE_ID], t):
                 continue
-            if t.is_private() or (t.archived and t.parent.type != ChannelType.forum):
+            if t.is_private() or t.archived:
                 continue
             visible_threads.append(t)
+        # include archived threads for forums
+        if target_channel.type == ChannelType.forum:
+            async for t in target_channel.archived_threads(limit=None):
+                visible_threads.append(t)
+
         thread_list_str = "\n".join(
             f"{t.name} (ID: {t.id}, last message: {snowflake_time(t.last_message_id).strftime('%Y-%m-%d %H:%M:%S')})"
             for t in visible_threads
