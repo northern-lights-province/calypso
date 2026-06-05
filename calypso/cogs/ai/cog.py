@@ -163,7 +163,9 @@ class AIUtils(commands.Cog):
                     await session.commit()
 
                     try:
-                        async for stream in chatter.full_round_stream(prompt, cache_control={"type": "ephemeral"}):
+                        async for stream in chatter.full_round_stream(
+                            prompt, cache_control={"type": "ephemeral"}, max_function_rounds=32
+                        ):
                             msg = await stream.message()
                             log.debug(msg)
                             if msg.role == ChatRole.ASSISTANT:
@@ -349,24 +351,35 @@ class AIUtils(commands.Cog):
 
 
 async def send_ai_msg(dest, msg):
-    buf = []
+    thinking_buf = []
+    content_buf = []
+    tool_buf = []
     for part in msg.parts:
         match part:
             case AnthropicUnknownPart(type="server_tool_use", data={"name": "web_search", "input": {"query": q}}):
-                buf.append(f"\n> -# Calypso searched for: `{q}`\n")
+                tool_buf.append(f"> -# Calypso searched for: `{q}`")
             case AnthropicUnknownPart(type="web_fetch_tool_result", data={"content": {"url": url}}):
-                buf.append(f"\n> -# Calypso visited: `{url}`\n")
+                tool_buf.append(f"> -# Calypso visited: `{url}`")
             case AnthropicThinkingPart(content=str(thinking)) if thinking:
-                thinking_clean = thinking.replace("\n", " ")
-                buf.append(f"\n> -# Thinking: ||{thinking_clean}||\n")
+                thinking_clean = thinking.replace("\n", " ").replace("||", "|")
+                thinking_buf.append(f"> -# Thinking: ||{thinking_clean}||")
             case _:
-                buf.append(str(part))
+                content_buf.append(str(part))
 
     if msg.tool_calls:
         tool_calls = ", ".join(f"`{tc.function.name}`" for tc in msg.tool_calls)
         tool_calls_str = f"\n> -# Calypso used tools: {tool_calls}"
-        buf.append(tool_calls_str)
+        tool_buf.append(tool_calls_str)
 
-    if buf:
-        out = "".join(buf).replace("\n\n> -#", "\n> -#")  # dirty format hack for thinking + tools w/ no content
-        await send_chunked(dest, out, allowed_mentions=disnake.AllowedMentions.none())
+    # render
+    if thinking_buf:
+        # special case: if only thinking + tool, send them in the same message
+        if not content_buf:
+            thinking_buf.extend(tool_buf)
+            tool_buf.clear()
+        await send_chunked(dest, "\n".join(thinking_buf), allowed_mentions=disnake.AllowedMentions.none())
+
+    # otherwise send content (plus possible tools) in own message
+    if content_buf or tool_buf:
+        out = "".join(content_buf) + "\n" + "\n".join(tool_buf)
+        await send_chunked(dest, out.strip(), allowed_mentions=disnake.AllowedMentions.none())

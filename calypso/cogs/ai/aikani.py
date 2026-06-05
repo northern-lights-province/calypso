@@ -311,6 +311,8 @@ class AIKani(Kani):
         for msg_data in itertools.chain.from_iterable(resp["messages"]):
             channel = await self.bot.get_or_fetch_channel(msg_data["channel_id"])
             msg = self.bot._connection.create_message(channel=channel, data=msg_data)
+            if not is_public_to_roles(channel.guild, [constants.MEMBER_ROLE_ID, constants.PLAYER_ROLE_ID], channel):
+                continue
             messages.append(msg)
         messages = sorted(messages, key=lambda m: m.id)
 
