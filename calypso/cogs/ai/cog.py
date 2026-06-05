@@ -357,19 +357,19 @@ async def send_ai_msg(dest, msg):
     tool_buf = []
     for part in msg.parts:
         match part:
-            case AnthropicUnknownPart(type="server_tool_use", data={"name": "web_search", "input": {"query": q}}):
-                tool_buf.append(f"> -# Calypso searched for: `{q}`")
-            case AnthropicUnknownPart(type="web_fetch_tool_result", data={"content": {"url": url}}):
-                tool_buf.append(f"> -# Calypso visited: `{url}`")
             case AnthropicThinkingPart(content=str(thinking)) if thinking:
                 thinking_clean = thinking.replace("\n", " ").replace("||", "|")
                 thinking_buf.append(f"> -# Thinking: ||{thinking_clean}||")
+            case AnthropicUnknownPart(type="server_tool_use", data={"name": "web_search", "input": {"query": q}}):
+                content_buf.append(f"\n> -# Calypso searched for: `{q}`\n")
+            case AnthropicUnknownPart(type="web_fetch_tool_result", data={"content": {"url": url}}):
+                content_buf.append(f"\n> -# Calypso visited: `{url}`\n")
             case _:
                 content_buf.append(str(part))
 
     if msg.tool_calls:
         tool_calls = ", ".join(f"`{tc.function.name}`" for tc in msg.tool_calls)
-        tool_calls_str = f"\n> -# Calypso used tools: {tool_calls}"
+        tool_calls_str = f"> -# Calypso used tools: {tool_calls}"
         tool_buf.append(tool_calls_str)
 
     # render
