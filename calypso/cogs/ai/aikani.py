@@ -318,7 +318,7 @@ class AIKani(Kani):
 
         # render messages
         def search_chat_prompt(message: disnake.Message) -> str:
-            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            timestamp = message.created_at.strftime("%Y-%m-%d %H:%M")
             prompt = (
                 f"In {message.channel.name} ({message.channel.id})\n{message.author.display_name} @"
                 f" {timestamp}\n{message.clean_content}"
