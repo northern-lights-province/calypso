@@ -14,7 +14,7 @@ from kani.engines.anthropic.parts import AnthropicThinkingPart
 from calypso import Calypso, config, constants, db, models
 from calypso.utils.functions import send_chunked
 from .aikani import AIKani
-from .engines import CHAT_HYPERPARAMS, chat_engine
+from .engines import CHAT_DESIRED_RESPONSE_TOKENS, CHAT_HYPERPARAMS, chat_engine
 from .prompts import AI_CHAT_PROMPT, chat_prompt
 
 log = logging.getLogger(__name__)
@@ -209,6 +209,7 @@ class AIUtils(commands.Cog):
             channel_id=thread.id,
             engine=chat_engine,
             system_prompt=AI_CHAT_PROMPT,
+            desired_response_tokens=CHAT_DESIRED_RESPONSE_TOKENS,
         )
 
         # register session in db

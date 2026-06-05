@@ -13,10 +13,11 @@ from calypso import config
 
 CHAT_HYPERPARAMS = dict(
     model="claude-opus-4-8",
-    max_context_size=512000,
-    max_tokens=64000,
+    max_context_size=1_000_000,
+    max_tokens=128_000,
     thinking={"type": "adaptive", "display": "summarized"},
 )
+CHAT_DESIRED_RESPONSE_TOKENS = 128_000
 
 
 class AnthropicServerToolsEngine(AnthropicEngine):
