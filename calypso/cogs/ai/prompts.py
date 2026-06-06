@@ -1,5 +1,3 @@
-import datetime
-
 import disnake
 
 AI_CHAT_PROMPT = """\
@@ -65,7 +63,54 @@ Do NOT include roleplay actions in *italics* unless asked to do so.
 """.strip()
 
 
+def render_embed(embed: disnake.Embed) -> str:
+    embed_lines = []
+    if embed.author.name:
+        embed_lines.append(
+            f"**{embed.author.name}**" if not embed.author.url else f"**[{embed.author.name}]({embed.author.url})**"
+        )
+    if embed.title:
+        embed_lines.append(f"# {embed.title}" if not embed.url else f"# [{embed.title}]({embed.url})")
+    if embed.description:
+        embed_lines.append(embed.description)
+    for field in embed.fields:
+        embed_lines.append(f"### {field.name}\n{field.value}")
+    if embed.footer.text:
+        embed_lines.append(f"-# {embed.footer.text}")
+    return "\n".join(embed_lines)
+
+
 def chat_prompt(message: disnake.Message) -> str:
     timestamp = message.created_at.strftime("%Y-%m-%d %H:%M")
-    prompt = f"{message.author.display_name} @ {timestamp}\n{message.clean_content}"
+    prompt_lines = [f"{message.author.display_name} @ {timestamp}"]
+
+    # content
+    if message.content:
+        prompt_lines.append(message.clean_content)
+
+    # forwarded content
+    if isinstance(message, disnake.Message) and message.message_snapshots:
+        for forwarded_message in message.message_snapshots:
+            fwd_timestamp = forwarded_message.created_at.strftime("%Y-%m-%d %H:%M")
+            fwd_channel = (
+                f"#{forwarded_message.channel.name}"
+                if hasattr(forwarded_message.channel, "name")
+                else "unknown channel"
+            )
+
+            forwarded_lines = [f"from {fwd_channel} @ {fwd_timestamp}"]
+            if forwarded_message.content:
+                forwarded_lines.append(forwarded_message.content)
+            for embed in forwarded_message.embeds:
+                forwarded_lines.append(render_embed(embed))
+
+            forwarded_content = "\n".join(forwarded_lines)
+            prompt_lines.append(f"<forwarded_message>\n{forwarded_content}\n</forwarded_message>")
+
+    # embeds
+    for embed in message.embeds:
+        embed_content = render_embed(embed)
+        prompt_lines.append(f"<embed>\n{embed_content}\n</embed>")
+
+    prompt = "\n".join(prompt_lines)
     return prompt

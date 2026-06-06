@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import collections
 import io
@@ -153,6 +154,9 @@ class AIUtils(commands.Cog):
         chatter.last_user_message_id = message.id
         prompt = chat_prompt(message)
         self.chat_input_buffer[message.channel.id].append(prompt)
+
+        # sleep 250ms to debounce messages
+        await asyncio.sleep(0.25)
 
         async with db.async_session() as session:
             # if the lock is held, terminate here; otherwise enter the buffer consumption loop
