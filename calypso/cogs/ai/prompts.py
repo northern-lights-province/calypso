@@ -63,6 +63,21 @@ Do NOT include roleplay actions in *italics* unless asked to do so.
 """.strip()
 
 
+def render_forwarded_message(forwarded_message: disnake.ForwardedMessage) -> str:
+    fwd_timestamp = forwarded_message.created_at.strftime("%Y-%m-%d %H:%M")
+    fwd_channel = (
+        f"#{forwarded_message.channel.name}" if hasattr(forwarded_message.channel, "name") else "unknown channel"
+    )
+
+    forwarded_lines = [f"from {fwd_channel} @ {fwd_timestamp}"]
+    if forwarded_message.content:
+        forwarded_lines.append(forwarded_message.content)
+    for embed in forwarded_message.embeds:
+        forwarded_lines.append(f"<embed>\n{render_embed(embed)}\n</embed>")
+
+    return "\n".join(forwarded_lines)
+
+
 def render_embed(embed: disnake.Embed) -> str:
     embed_lines = []
     if embed.author.name:
@@ -89,23 +104,9 @@ def chat_prompt(message: disnake.Message) -> str:
         prompt_lines.append(message.clean_content)
 
     # forwarded content
-    if isinstance(message, disnake.Message) and message.message_snapshots:
-        for forwarded_message in message.message_snapshots:
-            fwd_timestamp = forwarded_message.created_at.strftime("%Y-%m-%d %H:%M")
-            fwd_channel = (
-                f"#{forwarded_message.channel.name}"
-                if hasattr(forwarded_message.channel, "name")
-                else "unknown channel"
-            )
-
-            forwarded_lines = [f"from {fwd_channel} @ {fwd_timestamp}"]
-            if forwarded_message.content:
-                forwarded_lines.append(forwarded_message.content)
-            for embed in forwarded_message.embeds:
-                forwarded_lines.append(render_embed(embed))
-
-            forwarded_content = "\n".join(forwarded_lines)
-            prompt_lines.append(f"<forwarded_message>\n{forwarded_content}\n</forwarded_message>")
+    for forwarded_message in message.message_snapshots:
+        forwarded_content = render_forwarded_message(forwarded_message)
+        prompt_lines.append(f"<forwarded_message>\n{forwarded_content}\n</forwarded_message>")
 
     # embeds
     for embed in message.embeds:
