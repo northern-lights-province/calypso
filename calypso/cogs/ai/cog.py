@@ -13,6 +13,7 @@ from kani.engines.anthropic.parts import AnthropicThinkingPart
 
 from calypso import Calypso, config, constants, db, models
 from calypso.utils.functions import send_chunked
+from . import queries
 from .aikani import AIKani
 from .engines import CHAT_DESIRED_RESPONSE_TOKENS, CHAT_HYPERPARAMS, chat_engine
 from .prompts import AI_CHAT_PROMPT, chat_prompt
@@ -135,11 +136,20 @@ class AIUtils(commands.Cog):
             return
         if message.author.bot or message.is_system():
             return
+
+        chatter = self.chats[message.channel.id]
+
+        # commands
+        if message.content.startswith("!close"):
+            async with chatter.lock:
+                self.chats.pop(message.channel.id, None)
+                self.chat_input_buffer.pop(message.channel.id, None)
+                await message.channel.send("> -# Bye! Use `/ai chat` in this thread to resume later on.")
+                return
         if message.content.startswith("!"):
             return
 
         # create the prompt and add it to the channel buffer
-        chatter = self.chats[message.channel.id]
         chatter.last_user_message_id = message.id
         prompt = chat_prompt(message)
         self.chat_input_buffer[message.channel.id].append(prompt)
@@ -192,14 +202,26 @@ class AIUtils(commands.Cog):
         self,
         inter: disnake.ApplicationCommandInteraction,
     ):
-        # can only chat in OOC/staff category or ooc channel
-        if not isinstance(inter.channel, disnake.TextChannel) and (
-            inter.channel.category_id in (1031055347818971196, 1031651537543499827) or "ooc" in inter.channel.name
-        ):
-            await inter.send("Chatting with Calypso is not allowed in this channel.")
-            return
         await inter.response.defer()
 
+        # if run in an existing thread which is an old chat which is not currently running, make it active again
+        if isinstance(inter.channel, disnake.Thread):
+            if inter.channel.id in self.chats:
+                await inter.send("There is already an active chat session in this thread, cannot resume!")
+                return
+            await self._ai_chat_maybe_resume(inter)
+            return
+
+        # create new chat
+        # can only chat in OOC/staff category or ooc channel
+        if isinstance(inter.channel, disnake.TextChannel) and (
+            inter.channel.category_id in (1031055347818971196, 1031651537543499827) or "ooc" in inter.channel.name
+        ):
+            await self._ai_chat_begin_new(inter)
+            return
+        await inter.send("Chatting with Calypso is not allowed in this channel.")
+
+    async def _ai_chat_begin_new(self, inter: disnake.ApplicationCommandInteraction):
         # create thread, init chatter
         await inter.send("Making a thread now!")
         thread = await inter.channel.create_thread(
@@ -229,6 +251,41 @@ class AIUtils(commands.Cog):
         # begin chat
         self.chats[thread.id] = chatter
         await thread.add_user(inter.author)
+
+    async def _ai_chat_maybe_resume(self, inter: disnake.ApplicationCommandInteraction):
+        # load the messages from db
+        async with db.async_session() as session:
+            chat_info = await queries.get_chat_thread(session, inter.channel.id)
+            if not chat_info:
+                await inter.send(
+                    "This thread doesn't seem to be a closed Calypso chat. Use `/ai chat` in the parent channel if"
+                    " you meant to start a new chat."
+                )
+                return
+            messages_raw = await queries.get_chat_messages(session, chat_info.id)
+
+        # validate
+        try:
+            messages = [ChatMessage.model_validate(m.data) for m in messages_raw]
+        except Exception as e:
+            log.error("Failed to load AI chat history", exc_info=e)
+            await inter.send("Could not load the chat history for this thread. Sorry :(")
+            return
+
+        # create the kani and add to active memory
+        chatter = AIKani(
+            bot=self.bot,
+            channel_id=inter.channel.id,
+            engine=chat_engine,
+            system_prompt=AI_CHAT_PROMPT,
+            desired_response_tokens=CHAT_DESIRED_RESPONSE_TOKENS,
+            chat_session_id=chat_info.id,
+            chat_history=messages,
+        )
+
+        # begin chat
+        self.chats[inter.channel.id] = chatter
+        await inter.send(f"-# > Loaded {len(messages)} messages. Welcome back!")
 
     # ==== dalle ====
     # @commands.slash_command(
