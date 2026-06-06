@@ -157,7 +157,8 @@ class AIUtils(commands.Cog):
                     buf.clear()
 
                     user_msg = models.AIChatMessageRaw(
-                        chat_id=chatter.chat_session_id, data=ChatMessage.user(prompt).model_dump_json(fallback=repr)
+                        chat_id=chatter.chat_session_id,
+                        data=ChatMessage.user(prompt).model_dump(mode="json", fallback=repr),
                     )
                     session.add(user_msg)
                     await session.commit()
@@ -173,7 +174,7 @@ class AIUtils(commands.Cog):
 
                             # record msg in db
                             model_msg = models.AIChatMessageRaw(
-                                chat_id=chatter.chat_session_id, data=msg.model_dump_json(fallback=repr)
+                                chat_id=chatter.chat_session_id, data=msg.model_dump(mode="json", fallback=repr)
                             )
                             session.add(model_msg)
                             await session.commit()
