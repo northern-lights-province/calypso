@@ -317,15 +317,7 @@ class AIKani(Kani):
         messages = sorted(messages, key=lambda m: m.id)
 
         # render messages
-        def search_chat_prompt(message: disnake.Message) -> str:
-            timestamp = message.created_at.strftime("%Y-%m-%d %H:%M")
-            prompt = (
-                f"In {message.channel.name} ({message.channel.id})\n{message.author.display_name} @"
-                f" {timestamp}\n{message.clean_content}"
-            )
-            return prompt
-
-        message_results = "\n\n".join(search_chat_prompt(m) for m in messages)
+        message_results = "\n\n".join(f"In {m.channel.name} ({m.channel.id})\n" + chat_prompt(m) for m in messages)
 
         # render search meta
         return f"# Search Results\n{resp['total_results']} results\n\n{message_results}"

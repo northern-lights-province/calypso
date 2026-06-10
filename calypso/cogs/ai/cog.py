@@ -414,35 +414,47 @@ class AIUtils(commands.Cog):
 
 
 async def send_ai_msg(dest, msg):
-    thinking_buf = []
-    content_buf = []
-    tool_buf = []
+    buf = []
+    last_was_content = False
+
+    async def flush():
+        if not buf:
+            return
+        out = "\n".join(buf)
+        await send_chunked(dest, out.strip(), allowed_mentions=disnake.AllowedMentions.none())
+        buf.clear()
+
     for part in msg.parts:
         match part:
             case AnthropicThinkingPart(content=str(thinking)) if thinking:
+                if last_was_content:
+                    await flush()
                 thinking_clean = thinking.replace("\n", " ").replace("||", "|")
-                thinking_buf.append(f"> -# Thinking: ||{thinking_clean}||")
+                buf.append(f"> -# Thinking: ||{thinking_clean}||")
+                last_was_content = False
             case AnthropicUnknownPart(type="server_tool_use", data={"name": "web_search", "input": {"query": q}}):
-                content_buf.append(f"\n> -# Calypso searched for: `{q}`\n")
+                if last_was_content:
+                    await flush()
+                buf.append(f"> -# Calypso searched for: `{q}`")
+                last_was_content = False
             case AnthropicUnknownPart(type="web_fetch_tool_result", data={"content": {"url": url}}):
-                content_buf.append(f"\n> -# Calypso visited: `{url}`\n")
+                if last_was_content:
+                    await flush()
+                buf.append(f"> -# Calypso visited: `{url}`")
+                last_was_content = False
             case _:
-                content_buf.append(str(part))
+                content = str(part)
+                if content:
+                    if last_was_content:
+                        buf[-1] += content
+                    else:
+                        await flush()
+                        buf.append(content)
+                    last_was_content = True
 
     if msg.tool_calls:
         tool_calls = ", ".join(f"`{tc.function.name}`" for tc in msg.tool_calls)
         tool_calls_str = f"> -# Calypso used tools: {tool_calls}"
-        tool_buf.append(tool_calls_str)
+        buf.append(tool_calls_str)
 
-    # render
-    if thinking_buf:
-        # special case: if only thinking + tool, send them in the same message
-        if not content_buf:
-            thinking_buf.extend(tool_buf)
-            tool_buf.clear()
-        await send_chunked(dest, "\n".join(thinking_buf), allowed_mentions=disnake.AllowedMentions.none())
-
-    # otherwise send content (plus possible tools) in own message
-    if content_buf or tool_buf:
-        out = "".join(content_buf) + "\n" + "\n".join(tool_buf)
-        await send_chunked(dest, out.strip(), allowed_mentions=disnake.AllowedMentions.none())
+    await flush()
