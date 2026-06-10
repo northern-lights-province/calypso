@@ -177,10 +177,16 @@ class AIKani(Kani):
             async for t in target_channel.archived_threads(before=archived_before):
                 visible_threads.append(t)
 
-        thread_list_str = "\n".join(
-            f"{t.name} (ID: {t.id}, last message: {snowflake_time(t.last_message_id).strftime('%Y-%m-%d %H:%M:%S')})"
-            for t in visible_threads
-        )
+        thread_list = []
+        for t in visible_threads:
+            if t.last_message_id:
+                thread_list.append(
+                    f"{t.name} (ID: {t.id}, last message:"
+                    f" {snowflake_time(t.last_message_id).strftime('%Y-%m-%d %H:%M:%S')})"
+                )
+            else:
+                thread_list.append(f"{t.name} (ID: {t.id}, no messages)")
+        thread_list_str = "\n".join(thread_list)
         return f"# Threads in {target_channel.name}\n\n{thread_list_str}"
 
     @ai_function()

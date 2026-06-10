@@ -167,7 +167,7 @@ class AIUtils(commands.Cog):
             # the buf before we are done processing one)
             async with message.channel.typing():
                 while buf := self.chat_input_buffer[message.channel.id]:
-                    prompt = "\n\n---\n\n".join(buf)
+                    prompt = "\n\n".join(buf)
                     buf.clear()
 
                     user_msg = models.AIChatMessageRaw(
