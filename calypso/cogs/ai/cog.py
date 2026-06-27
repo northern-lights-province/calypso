@@ -21,6 +21,12 @@ from .prompts import AI_CHAT_PROMPT, chat_prompt
 
 log = logging.getLogger(__name__)
 
+ALLOWED_AI_CHAT_CATEGORIES = (
+    1031055347818971196,  # ooc
+    1031651537543499827,  # staff
+    1047937275226497104,  # dms
+)
+
 
 class AIUtils(commands.Cog):
     """Various AI utilities for players and DMs."""
@@ -219,7 +225,7 @@ class AIUtils(commands.Cog):
         # create new chat
         # can only chat in OOC/staff category or ooc channel
         if isinstance(inter.channel, disnake.TextChannel) and (
-            inter.channel.category_id in (1031055347818971196, 1031651537543499827) or "ooc" in inter.channel.name
+            inter.channel.category_id in ALLOWED_AI_CHAT_CATEGORIES or "ooc" in inter.channel.name
         ):
             await self._ai_chat_begin_new(inter)
             return
