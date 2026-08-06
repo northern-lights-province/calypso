@@ -1,3 +1,5 @@
+import functools
+
 from kani.engines.anthropic import AnthropicEngine
 
 from calypso import config
@@ -13,11 +15,11 @@ from calypso import config
 
 CHAT_HYPERPARAMS = dict(
     model="claude-opus-4-8",
-    max_context_size=1_000_000,
-    max_tokens=128_000,
+    max_context_size=128_000,
+    max_tokens=64_000,
     thinking={"type": "adaptive", "display": "summarized"},
 )
-CHAT_DESIRED_RESPONSE_TOKENS = 128_000
+CHAT_DESIRED_RESPONSE_TOKENS = 64_000
 
 
 class AnthropicServerToolsEngine(AnthropicEngine):
@@ -48,4 +50,7 @@ class AnthropicServerToolsEngine(AnthropicEngine):
         return result.usage.input_tokens
 
 
-chat_engine = AnthropicServerToolsEngine(api_key=config.ANTHROPIC_API_KEY, **CHAT_HYPERPARAMS)
+@functools.cache
+def create_chat_engine(model: str):
+    kwargs = {**CHAT_HYPERPARAMS, "model": model}
+    return AnthropicServerToolsEngine(api_key=config.ANTHROPIC_API_KEY, **kwargs)

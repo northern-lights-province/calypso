@@ -16,7 +16,7 @@ from calypso import Calypso, config, constants, db, models
 from calypso.utils.functions import send_chunked
 from . import queries
 from .aikani import AIKani
-from .engines import CHAT_DESIRED_RESPONSE_TOKENS, CHAT_HYPERPARAMS, chat_engine
+from .engines import CHAT_DESIRED_RESPONSE_TOKENS, CHAT_HYPERPARAMS, create_chat_engine
 from .prompts import AI_CHAT_PROMPT, chat_prompt
 
 log = logging.getLogger(__name__)
@@ -26,6 +26,13 @@ ALLOWED_AI_CHAT_CATEGORIES = (
     1031651537543499827,  # staff
     1047937275226497104,  # dms
 )
+ALLOWED_MODELS = [
+    "claude-opus-5",
+    "claude-sonnet-5",
+    "claude-opus-4-8",
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5",
+]
 
 
 class AIUtils(commands.Cog):
@@ -211,8 +218,12 @@ class AIUtils(commands.Cog):
     async def ai_chat(
         self,
         inter: disnake.ApplicationCommandInteraction,
+        model: str = commands.Param("claude-opus-4-8", choices=ALLOWED_MODELS),
     ):
         await inter.response.defer()
+        if model not in ALLOWED_MODELS:
+            await inter.send("This model is not allowed")
+            return
 
         # if run in an existing thread which is an old chat which is not currently running, make it active again
         if isinstance(inter.channel, disnake.Thread):
@@ -227,11 +238,11 @@ class AIUtils(commands.Cog):
         if isinstance(inter.channel, disnake.TextChannel) and (
             inter.channel.category_id in ALLOWED_AI_CHAT_CATEGORIES or "ooc" in inter.channel.name
         ):
-            await self._ai_chat_begin_new(inter)
+            await self._ai_chat_begin_new(inter, model)
             return
         await inter.send("Chatting with Calypso is not allowed in this channel.")
 
-    async def _ai_chat_begin_new(self, inter: disnake.ApplicationCommandInteraction):
+    async def _ai_chat_begin_new(self, inter: disnake.ApplicationCommandInteraction, model: str):
         # create thread, init chatter
         await inter.send("Making a thread now!")
         thread = await inter.channel.create_thread(
@@ -240,7 +251,7 @@ class AIUtils(commands.Cog):
         chatter = AIKani(
             bot=self.bot,
             channel_id=thread.id,
-            engine=chat_engine,
+            engine=create_chat_engine(model),
             system_prompt=AI_CHAT_PROMPT,
             desired_response_tokens=CHAT_DESIRED_RESPONSE_TOKENS,
         )
@@ -251,6 +262,7 @@ class AIUtils(commands.Cog):
                 channel_id=inter.channel_id,
                 author_id=inter.author.id,
                 prompt=json.dumps([m.model_dump(mode="json", exclude_none=True) for m in await chatter.get_prompt()]),
+                model=model,
                 hyperparams=json.dumps(CHAT_HYPERPARAMS),
                 thread_id=thread.id,
             )
@@ -286,7 +298,7 @@ class AIUtils(commands.Cog):
         chatter = AIKani(
             bot=self.bot,
             channel_id=inter.channel.id,
-            engine=chat_engine,
+            engine=create_chat_engine(chat_info.model),
             system_prompt=AI_CHAT_PROMPT,
             desired_response_tokens=CHAT_DESIRED_RESPONSE_TOKENS,
             chat_session_id=chat_info.id,

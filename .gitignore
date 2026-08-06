@@ -153,3 +153,4 @@ cython_debug/
 
 data/
 temp/
+**.DS_Store

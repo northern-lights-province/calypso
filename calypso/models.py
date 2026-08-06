@@ -196,6 +196,7 @@ class AIOpenEndedChat(Base):
     author_id = Column(BigInteger, nullable=False)
     timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
     prompt = Column(String, nullable=False)
+    model = Column(String, nullable=False)
     hyperparams = Column(String, nullable=False)
     thread_id = Column(BigInteger, nullable=False)
     thread_title = Column(String, nullable=True)
