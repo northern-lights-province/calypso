@@ -27,11 +27,9 @@ ALLOWED_AI_CHAT_CATEGORIES = (
     1047937275226497104,  # dms
 )
 ALLOWED_MODELS = [
-    "claude-opus-5",
-    "claude-sonnet-5",
-    "claude-opus-4-8",
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5",
+    "claude-opus-5-5",
+    "claude-sonnet-5-5",
+    "claude-haiku-5-5",
 ]
 
 
@@ -218,7 +216,7 @@ class AIUtils(commands.Cog):
     async def ai_chat(
         self,
         inter: disnake.ApplicationCommandInteraction,
-        model: str = commands.Param("claude-opus-4-8", choices=ALLOWED_MODELS),
+        model: str = commands.Param("claude-opus-5-5", choices=ALLOWED_MODELS),
     ):
         await inter.response.defer()
         if model not in ALLOWED_MODELS:
@@ -380,7 +378,7 @@ class AIUtils(commands.Cog):
         self,
         inter: disnake.ApplicationCommandInteraction,
         prompt: str = commands.Param(desc="The image description."),
-        quality: str = commands.Param("medium", choices=["high", "medium", "low"]),
+        quality: str = commands.Param("auto", choices=["auto", "high", "medium", "low"]),
         aspect_ratio: str = commands.Param("auto", choices=["auto", "square", "portrait", "landscape"]),
     ):
         await inter.response.defer()
@@ -397,7 +395,7 @@ class AIUtils(commands.Cog):
         # generate image and parse webp + metadata
         resp = await self.bot.openai.images.generate(
             prompt=prompt,
-            model="gpt-image-2",
+            model="gpt-image-2.5-flare",
             moderation="low",
             n=1,
             quality=quality,
