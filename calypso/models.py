@@ -2,7 +2,7 @@ import datetime
 import re
 
 from kani import ChatRole
-from sqlalchemy import BigInteger, Column, DateTime, Enum, ForeignKey, Integer, JSON, LargeBinary, String
+from sqlalchemy import BigInteger, Column, DateTime, Enum, Float, ForeignKey, Integer, JSON, LargeBinary, String
 from sqlalchemy.orm import relationship
 
 from .db import Base
@@ -290,3 +290,23 @@ class DalleImage(Base):
     filename = Column(String, nullable=False)
     revised_prompt = Column(String, nullable=True)
     timestamp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+
+
+# ==== xp ====
+class XPChannelConfig(Base):
+    __tablename__ = "xp_channel_config"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(BigInteger, nullable=False)
+    channel_id = Column(BigInteger, nullable=False, index=True)
+    xp_multiplier = Column(Float, nullable=False, default=1.0)
+
+
+class XPPlayer(Base):
+    __tablename__ = "xp_players"
+
+    id = Column(Integer, primary_key=True)
+    guild_id = Column(BigInteger, nullable=False)
+    member_id = Column(BigInteger, nullable=False, index=True)
+    xp = Column(Integer, nullable=False, default=0)
+    last_awarded_xp = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)

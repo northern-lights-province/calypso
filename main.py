@@ -4,7 +4,7 @@ import traceback
 import disnake
 from disnake.ext import commands
 
-from calypso import Calypso, config, db, errors, gamedata
+from calypso import Calypso, config, constants, db, errors, gamedata
 
 COGS = (
     "calypso.cogs.weather",
@@ -16,6 +16,7 @@ COGS = (
     "calypso.cogs.utils",
     "calypso.cogs.msglog",
     "calypso.cogs.markov",
+    "calypso.cogs.xp",
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +26,7 @@ bot = Calypso(
     command_prefix=commands.when_mentioned,
     intents=intents,
     sync_commands_debug=True,
+    test_guilds=[constants.GUILD_ID],
 )
 
 
